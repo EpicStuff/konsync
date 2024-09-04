@@ -3,7 +3,7 @@
 all: setup
 
 help:
-		@echo "konsave helper:"
+		@echo "konsync helper:"
 		@echo ""
 		@echo " - setup:        User-level setup"
 		@echo " - dev-setup:    Development setup"
@@ -30,17 +30,17 @@ fmt: black pylint
 
 black:
 		@echo " * Running black"
-		@black --safe konsave
+		@black --safe konsync
 
 
 # TODO: Consider adding this
 # usort:
 # 		@echo " * Running usort"
-# 		@usort format konsave
+# 		@usort format konsync
 
 pylint:
 		@echo " * Running pylint"
-		@pylint konsave
+		@pylint konsync
 
 clean:
 		@find . -name "*.pyc" -exec rm -f {} \;

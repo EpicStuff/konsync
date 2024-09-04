@@ -1,8 +1,8 @@
 ---
-# This is the configuration file for konsave.
+# This is the configuration file for konsync.
 # This file is pre-configured for KDE Plasma users.
 # This will backup all the important files for your Plasma customizations.
-# Please make sure it follows the correct format for proper working of Konsave.
+# Please make sure it follows the correct format for proper working of konsync.
 # The format should be:
 # ---
 # save:
@@ -34,7 +34,7 @@
 
 save:
     configs:
-        location: "$CONFIG_DIR"
+        location: $CONFIG_DIR
         entries:
             - gtk-2.0
             - gtk-3.0
@@ -67,7 +67,7 @@ save:
             - khotkeysrc
 
     app_layouts:
-        location: "$HOME/.local/share/kxmlgui5"
+        location: $HOME/.local/share/kxmlgui5
         entries:
             - dolphin
             - konsole
@@ -88,7 +88,7 @@ save:
 # The following files will only be used for exporting and importing.
 export:
     share_folder:
-        location: "$SHARE_DIR"
+        location: $SHARE_DIR
         entries:
             - plasma
             - kwin
@@ -100,7 +100,7 @@ export:
             - wallpapers
 
     home_folder:
-        location: "$HOME/"
+        location: $HOME
         entries:
             - .fonts
             - .themes
