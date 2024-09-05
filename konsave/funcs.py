@@ -2,131 +2,46 @@
 This module contains all the functions for konsync.
 '''
 
+import logging
 import os
 import shutil
-import traceback
+import subprocess
 from datetime import datetime
-from zipfile import is_zipfile, ZipFile
-from konsync.consts import (
-	HOME,
-	CONFIG_FILE,
-	PROFILES_DIR,
-	EXPORT_EXTENSION,
-	KONSYNC_DIR,
-)
-from konsync.parse import TOKEN_SYMBOL, tokens, parse_functions, parse_keywords
+from pathlib import Path
+
+from rich.traceback import install
+from send2trash import send2trash
+
+from konsync.consts import CONFIG_FILE, EXPORT_EXTENSION
+from konsync.parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
+
+log = logging.getLogger(__name__)
+logging.basicConfig()
 
 try:
-	import yaml
+	from taml import taml
 except ModuleNotFoundError as error:
 	raise ModuleNotFoundError(
-		'Please install the module PyYAML using pip: \n pip install PyYAML'
+		'Please install the module taml using pip: \n pip install taml'
 	) from error
 
 
-def exception_handler(func):
-	'''Handles errors and prints nicely.
-
-	Args:
-		func: any function
-
-	Returns:
-		Returns function
-	'''
-
-	def inner_func(*args, **kwargs):
-		try:
-			function = func(*args, **kwargs)
-		except Exception as err:
-			dateandtime = datetime.now().strftime('[%d/%m/%Y %H:%M:%S]')
-			log_file = os.path.join(HOME, '.cache/konsync_log.txt')
-
-			with open(log_file, 'a', encoding='utf-8') as file:
-				file.write(dateandtime + '\n')
-				traceback.print_exc(file=file)
-				file.write('\n')
-
-			print(
-				f'Konsync: {err}\nPlease check the log at {log_file} for more details.'
-			)
-			return None
-
-		return function
-
-	return inner_func
+def exception_handler(verbose) -> None:
+	install(width=os.get_terminal_size().columns, show_locals=verbose)
 
 
-def mkdir(path):
-	'''Creates directory if it doesn't exist.
-
-	Args:
-		path: path to the new directory
-
-	Returns:
-		path: the same path
-	'''
-	if not os.path.exists(path):
-		os.makedirs(path)
-	return path
-
-
-def log(msg, *args, **kwargs):
-	'''Logs text.
-
-	Args:
-		msg: the text to be printed
-		*args: any arguments for the function print()
-		**kwargs: any keyword arguments for the function print()
-	'''
-	print(f'Konsync: {msg}', *args, **kwargs)
-
-
-@exception_handler
-def copy(source, dest):
-	'''
-	This function was created because shutil.copytree gives error if the destination folder
-	exists and the argument 'dirs_exist_ok' was introduced only after python 3.8.
-	This restricts people with python 3.7 or less from using Konsync.
-	This function will let people with python 3.7 or less use Konsync without any issues.
-	It uses recursion to copy files and folders from 'source' to 'dest'
-
-	Args:
-		source: the source destination
-		dest: the destination to copy the file/folder to
-	'''
-	assert isinstance(source, str) and isinstance(dest, str), 'Invalid path'
-	assert source != dest, 'Source and destination can't be same'
-	assert os.path.exists(source), 'Source path doesn't exist'
-
-	if not os.path.exists(dest):
-		os.mkdir(dest)
-
-	for item in os.listdir(source):
-		source_path = os.path.join(source, item)
-		dest_path = os.path.join(dest, item)
-
-		if os.path.isdir(source_path):
-			copy(source_path, dest_path)
-		else:
-			if os.path.exists(dest_path):
-				os.remove(dest_path)
-			if os.path.exists(source_path):
-				shutil.copy(source_path, dest)
-
-
-@exception_handler
-def read_konsync_config(config_file) -> dict:
-	'''Reads 'conf.yaml' and parses it.
+def read_config(config_file=CONFIG_FILE) -> dict:
+	'''Reads the config file and parses it.
 
 	Args:
 		config_file: path to the config file
 	'''
-	with open(config_file, 'r', encoding='utf-8') as text:
-		konsync_config = yaml.load(text.read(), Loader=yaml.SafeLoader)
-	parse_keywords(tokens, TOKEN_SYMBOL, konsync_config)
-	parse_functions(tokens, TOKEN_SYMBOL, konsync_config)
+	config = taml.load(config_file)
 
-	# in some cases conf.yaml may contain nothing in "entries". Yaml parses
+	parse_keywords(tokens, TOKEN_SYMBOL, config)
+	parse_functions(tokens, TOKEN_SYMBOL, config)
+
+	# in some cases config.yaml may contain nothing in "entries". Yaml parses
 	# these as NoneType which are not iterable which throws an exception
 	# we can convert all None-Entries into empty lists recursively so they
 	# are simply skipped in loops later on
@@ -138,33 +53,10 @@ def read_konsync_config(config_file) -> dict:
 				data[k] = convert_none_to_empty_list(v)
 		return [] if data is None else data
 
-	return convert_none_to_empty_list(konsync_config)
+	return convert_none_to_empty_list(config)
 
 
-@exception_handler
-def list_profiles(profile_list, profile_count):
-	'''Lists all the created profiles.
-
-	Args:
-		profile_list: the list of all created profiles
-		profile_count: number of profiles created
-	'''
-
-	# assert
-	assert os.path.exists(PROFILES_DIR) and profile_count != 0, 'No profile found.'
-
-	# sort in alphabetical order
-	profile_list.sort()
-
-	# run
-	print('Konsync profiles:')
-	print('ID\tNAME')
-	for i, item in enumerate(profile_list):
-		print(f'{i + 1}\t{item}')
-
-
-@exception_handler
-def save_profile(name, profile_list, force=False):
+def sync(config_file=None, sync_dir=None, verbose=False, force=False):
 	'''Saves necessary config files in ~/.config/konsync/profiles/<name>.
 
 	Args:
@@ -173,35 +65,59 @@ def save_profile(name, profile_list, force=False):
 		force: force overwrite already created profile, optional
 	'''
 
-	# assert
-	assert name not in profile_list or force, 'Profile with this name already exists'
+	exception_handler(verbose)
 
 	# run
-	log('saving profile...')
-	profile_dir = os.path.join(PROFILES_DIR, name)
-	mkdir(profile_dir)
-
-	konsync_config = read_konsync_config(CONFIG_FILE)['save']
-
-	for section in konsync_config:
-		location = konsync_config[section]['location']
-		folder = os.path.join(profile_dir, section)
-		mkdir(folder)
-		for entry in konsync_config[section]['entries']:
+	log.info('syncing...')
+	# load config
+	config = read_config(config_file or CONFIG_FILE)
+	sync_dir = sync_dir or config['sync_dir']['placeholder']['location']
+	# check if sync location is specified
+	assert sync_dir, 'No sync location specified'
+	# sync files
+	config = config['save']
+	for section in config:
+		location = config[section]['location']
+		folder = os.path.join(sync_dir, section)
+		Path(folder).mkdir(parents=True, exist_ok=True)
+		# for each entry
+		for entry in config[section]['entries']:
 			source = os.path.join(location, entry)
 			dest = os.path.join(folder, entry)
-			if os.path.exists(source):
-				if os.path.isdir(source):
-					copy(source, dest)
-				else:
-					shutil.copy(source, dest)
+			# if the file/folder exists in local location
+			while True:
+				if os.path.exists(source):
+					if os.path.islink(source.rstrip('/')):
+						log.info('removing symlink %s', source)
+						send2trash(source)
+						break
+					# move the file/folder to the sync location
+					log.debug('moving %s to %s', source, dest)
+					if os.path.exists(dest):
+						if force != 'local':
+							log.warning('File %s already exists, skipping. Use --force local to overwrite.', dest)
+							break
+						else:
+							log.warning('File %s already exists, deleting.', dest)
+							send2trash(dest)
+					shutil.move(source, dest)
+					break
+			# if the file/folder exist in sync location
+			if os.path.exists(dest):
+				# symlink the file/folder to the local location
+				log.debug('symlinking %s to %s', dest, source)
+				if os.path.exists(source):
+					if force != 'sync':
+						log.warning('File %s already exists, skipping. Use --force sync to overwrite.', source)
+						continue
+					else:
+						log.warning('File %s already exists, deleting.', source)
+						send2trash(source)
+				subprocess.run(['ln', '-s', dest, source.rstrip('/')], check=True)
 
-	shutil.copy(CONFIG_FILE, profile_dir)
-
-	log('Profile saved successfully!')
+	log.info('Profile saved successfully!')
 
 
-@exception_handler
 def apply_profile(profile_name, profile_list, profile_count):
 	'''Applies profile of the given id.
 
@@ -231,8 +147,7 @@ def apply_profile(profile_name, profile_list, profile_count):
 	)
 
 
-@exception_handler
-def remove_profile(profile_name, profile_list, profile_count):
+def remove(profile_name, profile_list, profile_count):
 	'''Removes the specified profile.
 
 	Args:
@@ -251,7 +166,6 @@ def remove_profile(profile_name, profile_list, profile_count):
 	log('removed profile successfully')
 
 
-@exception_handler
 def export(profile_name, profile_list, profile_count, archive_dir, archive_name, force):
 	'''It will export the specified profile as a `.knsv` to the specified directory.
 	   If there is no specified directory, the directory is set to the current working directory.
@@ -300,7 +214,7 @@ def export(profile_name, profile_list, profile_count, archive_dir, archive_name,
 	export_path_save = mkdir(os.path.join(export_path, 'save'))
 	for name in konsync_config['save']:
 		location = os.path.join(profile_dir, name)
-		log(f'Exporting '{name}'...')
+		log(f"Exporting '{name}'...")
 		copy(location, os.path.join(export_path_save, name))
 
 	konsync_config_export = konsync_config['export']
@@ -311,7 +225,7 @@ def export(profile_name, profile_list, profile_count, archive_dir, archive_name,
 		for entry in konsync_config_export[name]['entries']:
 			source = os.path.join(location, entry)
 			dest = os.path.join(path, entry)
-			log(f'Exporting '{entry}'...')
+			log(f'Exporting "{entry}"...')
 			if os.path.exists(source):
 				if os.path.isdir(source):
 					copy(source, dest)
@@ -329,7 +243,6 @@ def export(profile_name, profile_list, profile_count, archive_dir, archive_name,
 	log(f'Successfully exported to {export_path}{EXPORT_EXTENSION}')
 
 
-@exception_handler
 def import_profile(path):
 	'''This will import an exported profile.
 
@@ -370,7 +283,7 @@ def import_profile(path):
 		for entry in konsync_config['export'][section]['entries']:
 			source = os.path.join(path, entry)
 			dest = os.path.join(location, entry)
-			log(f'Importing '{entry}'...')
+			log(f'Importing "{entry}"...')
 			if os.path.exists(source):
 				if os.path.isdir(source):
 					copy(source, dest)
@@ -382,7 +295,6 @@ def import_profile(path):
 	log('Profile successfully imported!')
 
 
-@exception_handler
 def wipe():
 	'''Wipes all profiles.'''
 	confirm = input('This will wipe all your profiles. Enter "WIPE" To continue: ')

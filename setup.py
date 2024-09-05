@@ -34,7 +34,7 @@ _REQUIREMENTS: List[str] = _read_reqs(Path('requirements.txt'))
 _REQUIREMENTS_DEV: List[str] = _read_reqs(Path('requirements_dev.txt'))
 
 setup(
-	name='Konsync',
+	name='konsync',
 	use_scm_version=True,
 	setup_requires=['setuptools_scm'],
 	author='EpicStuff',
@@ -46,7 +46,7 @@ setup(
 	packages=find_packages(),
 	package_data={'config': ['conf.yaml']},
 	include_package_data=True,
-	python_requires='>=3.6',
+	python_requires='>=3.8',
 	install_requires=_REQUIREMENTS,
 	extras_require={'dev': _REQUIREMENTS_DEV},
 	classifiers=[

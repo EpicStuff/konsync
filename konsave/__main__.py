@@ -3,22 +3,12 @@
 import argparse
 import os
 import shutil
+from pathlib import Path
+
 from pkg_resources import resource_filename
-from konsync.funcs import (
-	list_profiles,
-	save_profile,
-	remove_profile,
-	apply_profile,
-	export,
-	import_profile,
-	wipe,
-)
-from konsync.consts import (
-	VERSION,
-	CONFIG_FILE,
-	list_of_profiles,
-	length_of_lop,
-)
+
+from konsync.consts import CONFIG_FILE, VERSION
+from konsync.funcs import export, log, remove, sync
 
 
 def _get_parser() -> argparse.ArgumentParser:
@@ -28,83 +18,72 @@ def _get_parser() -> argparse.ArgumentParser:
 		argparse.ArgumentParser: Created parser.
 	'''
 	parser = argparse.ArgumentParser(
-		prog="Konsync",
-		epilog="Please report bugs at https://www.github.com/epicstuff/konsync",
+		prog='Konsync',
+		epilog='Please report bugs at https://www.github.com/epicstuff/konsync',
 	)
 
 	parser.add_argument(
-		"-l",
-		"--list",
+		'-s',
+		'--sync',
 		required=False,
-		action="store_true",
-		help="Lists created profiles",
+		action='store_true',
+		help='Setup sync based on current config',
 	)
 	parser.add_argument(
-		"-s",
-		"--save",
+		'-r',
+		'--remove',
+		required=False,
+		action='store_true',
+		help='Remove links and copies files',
+	)
+	parser.add_argument(
+		'-i',
+		'--import',
+		required=False,
+		action='store_true',
+		help='Import files that are not synced',
+	)
+	parser.add_argument(
+		'-e',
+		'--export',
+		required=False,
+		action='store_true',
+		help='Export and compress files that are not synced',
+	)
+	parser.add_argument(
+		'-f',
+		'--force',
+		required=False,
+		help='Force, will delete existing files, specify prioritise local or sync files with -f local or -f sync',
+	)
+	parser.add_argument(
+		'-v',
+		'--version',
+		'--verbose',
+		required=False,
+		action='store_true',
+		help='Show version when used without other aguments, acts as verbose switch when used with other aguments',
+	)
+	parser.add_argument(
+		'-c',
+		'--config',
+		required=False,
+		type=Path,
+		help='Specify config file location, defaults to ./config.taml'
+	)
+	parser.add_argument(
+		'-C',
+		'--compression',
 		required=False,
 		type=str,
-		help="Save current config as a profile",
-		metavar="<name>",
+		default='fpaq',
+		help='Specify compression algorithm, defaults to fpaq, Options: fpaq'
 	)
 	parser.add_argument(
-		"-r",
-		"--remove",
-		required=False,
+		'location',
+		nargs='?',
 		type=str,
-		help="Remove the specified profile",
-		metavar="<name>",
-	)
-	parser.add_argument(
-		"-a",
-		"--apply",
-		required=False,
-		type=str,
-		help="Apply the specified profile",
-		metavar="<name>",
-	)
-	parser.add_argument(
-		"-e",
-		"--export-profile",
-		required=False,
-		type=str,
-		help="Export an existing profile and share with your friends!",
-		metavar="<name>",
-	)
-	parser.add_argument(
-		"-i",
-		"--import-profile",
-		required=False,
-		type=str,
-		help="Import a konsync file",
-		metavar="<path>",
-	)
-	parser.add_argument(
-		"-f",
-		"--force",
-		required=False,
-		action="store_true",
-		help="Overwrite already saved profiles",
-	)
-	parser.add_argument(
-		"-d",
-		"--export-directory",
-		required=False,
-		help="Specify the export directory when exporting a profile",
-		metavar="<directory>",
-	)
-	parser.add_argument(
-		"-n",
-		"--export-name",
-		required=False,
-		help="Specify the export name when exporting a profile",
-		metavar="<archive-name>",
-	)
-	parser.add_argument(
-		"-v", "--version", required=False, action="store_true", help="Show version"
-	)
-	parser.add_argument(
-		"-w", "--wipe", required=False, action="store_true", help="Wipes all profiles."
+		help='Specify directory to sync files to, overwrites config.taml'
 	)
 
 	return parser
@@ -113,43 +92,36 @@ def _get_parser() -> argparse.ArgumentParser:
 def main():
 	'''The main function that handles all the arguments and options.'''
 
+	# create copy of config file if it doesn't exist
 	if not os.path.exists(CONFIG_FILE):
-		if os.path.expandvars("$XDG_CURRENT_DESKTOP") == "KDE":
-			default_config_path = resource_filename("konsync", "conf_kde.yaml")
+		if os.path.expandvars('$XDG_CURRENT_DESKTOP') == 'KDE':
+			default_config_path = resource_filename('konsync', 'conf_kde.taml')
 			shutil.copy(default_config_path, CONFIG_FILE)
 		else:
-			default_config_path = resource_filename("konsync", "conf_other.yaml")
+			default_config_path = resource_filename('konsync', 'conf_other.taml')
 			shutil.copy(default_config_path, CONFIG_FILE)
+		log('created config file')
 
 	parser = _get_parser()
 	args = parser.parse_args()
 
-	if args.list:
-		list_profiles(list_of_profiles, length_of_lop)
-	elif args.save:
-		save_profile(args.save, list_of_profiles, force=args.force)
-	elif args.remove:
-		remove_profile(args.remove, list_of_profiles, length_of_lop)
-	elif args.apply:
-		apply_profile(args.apply, list_of_profiles, length_of_lop)
-	elif args.export_profile:
-		export(
-			args.export_profile,
-			list_of_profiles,
-			length_of_lop,
-			args.export_directory,
-			args.export_name,
-			args.force,
-		)
-	elif args.import_profile:
-		import_profile(args.import_profile)
-	elif args.version:
-		print(f"Konsync: {VERSION}")
-	elif args.wipe:
-		wipe()
+	# set log level based on verbose
+	if args.version:
+		log.setLevel('DEBUG')
 	else:
+		log.setLevel('INFO')
+	#
+	if args.sync:
+		sync(args.config, args.location, args.version, args.force)
+	elif args.remove:
+		remove()
+	elif args.export:
+		export(args.export_name, args.force)
+	elif args.version:
+		print(VERSION)
+	elif not args.version:
 		parser.print_help()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 	main()
