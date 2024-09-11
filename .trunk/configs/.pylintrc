@@ -1,0 +1,8 @@
+[MAIN]
+py-version=3.12
+
+[FORMAT]
+indent-string="\t"
+
+[MESSAGES CONTROL]
+disable=C0103,C0114,C0115,C0116,C0301,C0321,C0410,E0401,W0603

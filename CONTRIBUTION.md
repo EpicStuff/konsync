@@ -1,7 +1,6 @@
 # Contributing
 
-When contributing to this repository, please first discuss the change you wish to make via issue,
-email, or any other method with the owners of this repository before making a change.
+When contributing to this repository, please first discuss the change you wish to make via issue.
 
 Please note we have a code of conduct, please follow it in all your interactions with the project.
 
@@ -9,16 +8,14 @@ Please note we have a code of conduct, please follow it in all your interactions
 
 1. Ensure any install or build dependencies are removed before the end of the layer when doing a
    build.
-2. Update the README.md with details of changes to the interface.
-3. Increase the version number in `konsync/vars.py`. The versioning scheme we use is [SemVer](http://semver.org/).
-4. Introduced changes should be briefly described in `CHANGELOG.md`.
-5. Create a pull request and wait for the response.
+2. Increase the version number in `konsync/vars.py`. The versioning scheme we use is [SemVer](http://semver.org/).
+3. Introduced changes should be briefly described in `CHANGELOG.md`.
+4. Create a pull request and wait for the response.
 
 ## Code Guidelines
 
-1. This project uses the [PEP8](https://www.python.org/dev/peps/pep-0008/) code style. Your code must follow the same before you create a pull request. Your [PyLint](https://www.pylint.org/) score should be 10.00/10. You can use [black formatter](https://github.com/psf/black) to format your code quickly.
-2. Every function in your code _must_ have a docstring that follows [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html). Use [Darglint](https://github.com/terrencepreilly/darglint) to double check.
-3. Except for quotation, use single when possible
+1. Use tabs
+2. Except for quotation, use single quotes when possible
 
 ## Code of Conduct
 
@@ -54,10 +51,6 @@ Examples of unacceptable behavior by participants include:
     professional setting
 
 ### Our Responsibilities
-
-Project maintainers are responsible for clarifying the standards of acceptable
-behavior and are expected to take appropriate and fair corrective action in
-response to any instances of unacceptable behavior.
 
 Project maintainers have the right and responsibility to remove, edit, or
 reject comments, commits, code, issues, and other contributions

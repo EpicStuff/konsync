@@ -1,5 +1,41 @@
-# Generic, formatter-friendly config.
-select = ["B", "D3", "E", "F"]
+target-version = "py312"
 
+[lint]
+# Generic, formatter-friendly config.
+select = ["ALL"]
 # Never enforce `E501` (line length violations). This should be handled by formatters.
-ignore = ["E501", "B300"]
+ignore = [
+	"ANN",
+	"D100",
+	"D101",
+	"D102",
+	"D103",
+	"D104",
+	"D105",
+	"D107",
+	"D206",
+	"D209",
+	"D300",
+	"D400",
+	"D401",
+	"D415",
+	"E401",
+	"E501",
+	"FBT",
+	"PLW0603",
+	"Q000",
+	"Q001",
+	"Q002",
+	"RUF013",
+	"SIM117",
+	"T201",
+	"W191",
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[format]
+indent-style = "tab"
+quote-style = "single"

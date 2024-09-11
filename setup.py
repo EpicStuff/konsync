@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import List
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 
 def _read_desc() -> str:
@@ -38,7 +38,7 @@ setup(
 	use_scm_version=True,
 	setup_requires=['setuptools_scm'],
 	author='EpicStuff',
-	author_email='EpicZtuff@protonmail.com',
+	author_email='EpicStuff@users.noreply.github.com',
 	description='A program that lets you sync your Plasma configuration to a synced folder. (Seafile, Nextcloud, etc.)',
 	long_description=_read_desc(),
 	long_description_content_type='text/markdown',
@@ -48,7 +48,6 @@ setup(
 	include_package_data=True,
 	python_requires='>=3.8',
 	install_requires=_REQUIREMENTS,
-	extras_require={'dev': _REQUIREMENTS_DEV},
 	classifiers=[
 		'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
 		'Operating System :: POSIX',
