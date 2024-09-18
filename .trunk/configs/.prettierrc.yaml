@@ -2,5 +2,5 @@ bracketSpacing: false
 jsxSingleQuote: true
 semi: false
 singleQuote: true
-tabWidth: 4
+tabWidth: 2
 useTabs: true

@@ -1,9 +1,8 @@
-'''
-This module parses conf.yaml
-'''
+'''parse module parses conf.yaml'''
 import os
 import re
-from konsync.consts import HOME, CONFIG_DIR, SHARE_DIR, BIN_DIR
+
+from konsync.consts import BIN_DIR, CONFIG_DIR, HOME, SHARE_DIR
 
 
 def ends_with(grouped_regex, path) -> str:
@@ -12,6 +11,7 @@ def ends_with(grouped_regex, path) -> str:
 	Args:
 		grouped_regex: regex of the function
 		path: path
+
 	'''
 	occurence = re.search(grouped_regex, path).group()
 	dirs = os.listdir(path[0: path.find(occurence)])
@@ -28,6 +28,7 @@ def begins_with(grouped_regex, path) -> str:
 	Args:
 		grouped_regex: regex of the function
 		path: path
+
 	'''
 	occurence = re.search(grouped_regex, path).group()
 	dirs = os.listdir(path[0: path.find(occurence)])
@@ -39,17 +40,21 @@ def begins_with(grouped_regex, path) -> str:
 
 
 def parse_keywords(tokens_, token_symbol, parsed):
-	'''Replaces keywords with values in config.yaml. For example, it will replace, $HOME with
-	/home/username/
+	'''Replaces keywords with values in config.yaml.
+
+	For example, it will replace, $HOME with /home/username/
 
 	Args:
 		tokens_: the token dictionary
 		token_symbol: TOKEN_SYMBOL
 		parsed: the parsed conf.yaml file
+
 	'''
 	for item in parsed:
 		for name in parsed[item]:
 			for key, value in tokens_['keywords']['dict'].items():
+				if 'location' not in parsed[item][name]:
+					continue
 				word = token_symbol + key
 				location = parsed[item][name]['location']
 				if word in location:
@@ -57,13 +62,15 @@ def parse_keywords(tokens_, token_symbol, parsed):
 
 
 def parse_functions(tokens_, token_symbol, parsed):
-	'''Replaces functions with values in conf.yaml. For example, it will replace,
-	${ENDS_WITH='text'} with a folder whose name ends with 'text'
+	'''Replaces functions with values in conf.yaml.
+
+	For example, it will replace, ${ENDS_WITH='text'} with a folder whose name ends with 'text'
 
 	Args:
 		tokens_: the token dictionary
 		token_symbol: TOKEN_SYMBOL
 		parsed: the parsed conf.yaml file
+
 	'''
 	functions = tokens_['functions']
 	raw_regex = f"\\{token_symbol}{functions['raw_regex']}"
@@ -71,6 +78,8 @@ def parse_functions(tokens_, token_symbol, parsed):
 
 	for item in parsed:
 		for name in parsed[item]:
+			if 'location' not in parsed[item][name]:
+				continue
 			location = parsed[item][name]['location']
 			occurences = re.findall(raw_regex, location)
 			if not occurences:
@@ -78,20 +87,18 @@ def parse_functions(tokens_, token_symbol, parsed):
 			for occurence in occurences:
 				func = re.search(grouped_regex, occurence).group(1)
 				if func in functions['dict']:
-					parsed[item][name]['location'] = functions['dict'][func](
-						grouped_regex, location
-					)
+					parsed[item][name]['location'] = functions['dict'][func](grouped_regex, location)
 
 
-TOKEN_SYMBOL = '$'
+TOKEN_SYMBOL = '$'  # trunk-ignore(ruff/S105,bandit/B105)
 tokens = {
 	'keywords': {
 		'dict': {
-			'HOME': HOME,
-			'CONFIG_DIR': CONFIG_DIR,
-			'SHARE_DIR': SHARE_DIR,
-			'BIN_DIR': BIN_DIR,
-		}
+			'HOME': str(HOME),
+			'CONFIG_DIR': str(CONFIG_DIR),
+			'SHARE_DIR': str(SHARE_DIR),
+			'BIN_DIR': str(BIN_DIR),
+		},
 	},
 	'functions': {
 		'raw_regex': r"\{\w+\=(?:\"|')\S+(?:\"|')\}",

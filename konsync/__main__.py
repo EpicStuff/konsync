@@ -15,10 +15,11 @@ def _get_parser() -> argparse.ArgumentParser:
 
 	Returns:
 		argparse.ArgumentParser: Created parser.
+
 	'''
 	parser = argparse.ArgumentParser(
 		prog='Konsync',
-		epilog='Please report bugs at https://www.github.com/epicstuff/konsync',
+		epilog='Please report bugs at https://www.github.com/epicstuff/konsync/issues',
 		usage='%(prog)s [options...] [location]',
 	)
 
@@ -80,13 +81,13 @@ def _get_parser() -> argparse.ArgumentParser:
 		required=False,
 		type=str,
 		default='fpaq',
-		help='Specify compression algorithm, defaults to fpaq',
+		help='Specify compression algorithm, overwriting config.taml',
 		choices=['fpaq'],
 	)
 	parser.add_argument(
 		'location',
 		nargs='?',
-		type=str,
+		type=Path,
 		help='Specify directory to sync files to, overwrites config.taml',
 	)
 
@@ -95,14 +96,13 @@ def _get_parser() -> argparse.ArgumentParser:
 
 def main():
 	'''The main function that handles all the arguments and options.'''
-
 	# create copy of config file if it doesn't exist
-	if not os.path.exists(CONFIG_FILE):
+	if not Path(CONFIG_FILE).exists():
 		if os.path.expandvars('$XDG_CURRENT_DESKTOP') == 'KDE':
-			with importlib.resources.path('konsync', 'conf_kde.taml') as default_config_path:
+			with importlib.resources.path('konsync', 'conf_kde.taml') as default_config_path:  # trunk-ignore(pylint/W4902)
 				shutil.copy(default_config_path, CONFIG_FILE)
 		else:
-			with importlib.resources.path('konsync', 'conf_other.taml') as default_config_path:
+			with importlib.resources.path('konsync', 'conf_other.taml') as default_config_path:  # trunk-ignore(pylint/W4902)
 				shutil.copy(default_config_path, CONFIG_FILE)
 		log.info('created config file')
 
@@ -114,13 +114,12 @@ def main():
 		log.setLevel('DEBUG')
 	else:
 		log.setLevel('INFO')
-	#
 	if args.sync:
 		sync(args.config, args.location, args.version, args.force)
+	elif args.export:
+		export(args.config, args.location, args.compression, args.version)
 	elif args.remove:
 		remove()
-	elif args.export:
-		export(args.export_name, args.force)
 	elif args.version:
 		print(VERSION)
 	elif not args.version:

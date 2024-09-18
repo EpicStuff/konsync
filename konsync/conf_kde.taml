@@ -31,9 +31,13 @@
 # ${ENDS_WITH="text"}: for folders with different names on different computers whose names end with the same thing.
 # The best example for this is the "*.default-release" folder of firefox.
 # ${BEGINS_WITH="text"}: for folders with different names on different computers whose names start with the same thing.
-sync_dir:
-  placeholder:  # this is required due to the way the parsing functions were written
-    location:
+settings:  # general settings
+  sync_dir:  # directory to sync files to/from, eg. $HOME/Seafile/sync
+    location: $HOME/Downloads/temp/
+  compression:  # compression algorithm settings
+    algorithm: fpaq  # currently only fpaq (or officialy zpaqfanz) is supported
+    level: 3  # honestly, level 1 is probably good enough
+    args:  # overwrite compression arguments, do not touch unless you know what your doing
 
 save:
 	configs:

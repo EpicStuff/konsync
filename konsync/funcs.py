@@ -1,16 +1,15 @@
-'''
-This module contains all the functions for konsync.
-'''
+'''funcs module contains all the functions for konsync.'''
 
 import logging
 import os
 import shutil
-import subprocess
-from datetime import datetime
+from os import system as run
 from pathlib import Path
 
+from epicstuff import Dict
 from rich.traceback import install
 from send2trash import send2trash
+from taml import taml
 
 from konsync.consts import CONFIG_FILE, EXPORT_EXTENSION
 from konsync.parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
@@ -18,24 +17,26 @@ from konsync.parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
 log = logging.getLogger(__name__)
 logging.basicConfig()
 
-try:
-	from taml import taml
-except ModuleNotFoundError as error:
-	raise ModuleNotFoundError(
-		'Please install the module taml using pip: \n pip install taml'
-	) from error
 
-
-def exception_handler(verbose) -> None:
+def exception_handler(verbose: bool = False) -> None:
 	install(width=os.get_terminal_size().columns, show_locals=verbose)
 
 
-def read_config(config_file=CONFIG_FILE) -> dict:
+def read_config(config_file: Path = CONFIG_FILE) -> dict:
 	'''Reads the config file and parses it.
 
 	Args:
 		config_file: path to the config file
+
 	'''
+	def convert_none_to_empty_list(data):
+		if isinstance(data, list):
+			data[:] = [convert_none_to_empty_list(i) for i in data]
+		elif isinstance(data, dict):
+			for k, v in data.items():
+				data[k] = convert_none_to_empty_list(v)
+		return [] if data is None else data
+
 	config = taml.load(config_file)
 
 	parse_keywords(tokens, TOKEN_SYMBOL, config)
@@ -45,106 +46,142 @@ def read_config(config_file=CONFIG_FILE) -> dict:
 	# these as NoneType which are not iterable which throws an exception
 	# we can convert all None-Entries into empty lists recursively so they
 	# are simply skipped in loops later on
-	def convert_none_to_empty_list(data):
-		if isinstance(data, list):
-			data[:] = [convert_none_to_empty_list(i) for i in data]
-		elif isinstance(data, dict):
-			for k, v in data.items():
-				data[k] = convert_none_to_empty_list(v)
-		return [] if data is None else data
-
-	return convert_none_to_empty_list(config)
+	return Dict(convert_none_to_empty_list(config))
 
 
-def sync(config_file=None, sync_dir=None, verbose=False, force=False):
+def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False, force: bool | str = False):
 	'''Saves necessary config files in ~/.config/konsync/profiles/<name>.
 
 	Args:
-		name: name of the profile
-		profile_list: the list of all created profiles
-		force: force overwrite already created profile, optional
-	'''
+		config_file: location of config file
+		sync_dir: directory to sync files to
+		verbose: should errors be verbose
+		force: force overwrite existing files
 
+	'''
 	exception_handler(verbose)
 
+	# load config
+	config: Dict = read_config(config_file or CONFIG_FILE)
 	# run
 	log.info('syncing...')
-	# load config
-	config = read_config(config_file or CONFIG_FILE)
-	sync_dir = sync_dir or config['sync_dir']['placeholder']['location']
-	# check if sync location is specified
-	assert sync_dir, 'No sync location specified'
+	try:
+		sync_dir: Path = sync_dir or Path(config.settings.sync_dir.location)
+	except TypeError:
+		log.fatal('A sync dir must be specified')
+		return
 	# sync files
-	config = config['save']
+	config = config.save
 	for section in config:
-		location = config[section]['location']
-		folder = os.path.join(sync_dir, section)
-		Path(folder).mkdir(parents=True, exist_ok=True)
+		location: Path = Path(config[section].location)
+		folder: Path = sync_dir / section
+		folder.mkdir(parents=True, exist_ok=True)
 		# for each entry
-		for entry in config[section]['entries']:
-			source = os.path.join(location, entry)
-			dest = os.path.join(folder, entry)
+		for entry in config[section].entries:
+			source: Path = location / entry
+			dest: Path = folder / entry
 			# if the file/folder exists in local location
 			while True:
-				if os.path.exists(source):
-					if os.path.islink(source.rstrip('/')):
+				if source.exists():
+					if source.is_symlink():
 						log.info('removing symlink %s', source)
 						send2trash(source)
 						break
 					# move the file/folder to the sync location
 					log.debug('moving %s to %s', source, dest)
-					if os.path.exists(dest):
+					if dest.exists():
 						if force != 'local':
 							log.warning('File %s already exists, skipping. Use --force local to overwrite.', dest)
 							break
-						else:
-							log.warning('File %s already exists, deleting.', dest)
-							send2trash(dest)
+						log.warning('File %s already exists, deleting.', dest)
+						send2trash(dest)
 					shutil.move(source, dest)
-					break
+				break
 			# if the file/folder exist in sync location
-			if os.path.exists(dest):
+			if dest.exists():
 				# symlink the file/folder to the local location
 				log.debug('symlinking %s to %s', dest, source)
-				if os.path.exists(source):
+				if source.exists():
 					if force != 'sync':
 						log.warning('File %s already exists, skipping. Use --force sync to overwrite.', source)
 						continue
-					else:
-						log.warning('File %s already exists, deleting.', source)
-						send2trash(source)
-				subprocess.run(['ln', '-s', dest, source.rstrip('/')], check=True)
+					log.warning('File %s already exists, deleting.', source)
+					send2trash(source)
+				run(f'ln -s {dest} {source}', check=True)
 
-	log.info('Profile saved successfully!')
+	log.info('Files synced successfully')
+	log.info('Log-out and log-in to see the changes completely')
 
 
-def apply_profile(profile_name, profile_list, profile_count):
-	'''Applies profile of the given id.
+def export(config_file: Path = None, sync_dir: Path = None, compression: str = 'fpaq', verbose: bool = False):
+	'''Will export files as `.knsv` to the sync directory.
 
 	Args:
-		profile_name: name of the profile to be applied
-		profile_list: the list of all created profiles
-		profile_count: number of profiles created
+		config_file: location of config file
+		sync_dir: directory to sync files to
+		compression: compression algorithm used, currently only fpaq supported
+		verbose: should errors be verbose
+
 	'''
-
-	# assert
-	assert profile_count != 0, 'No profile saved yet.'
-	assert profile_name in profile_list, 'Profile not found :('
-
-	# run
-	profile_dir = os.path.join(PROFILES_DIR, profile_name)
-
-	log('copying files...')
-
-	config_location = os.path.join(profile_dir, 'conf.yaml')
-	profile_config = read_konsync_config(config_location)['save']
-	for name in profile_config:
-		location = os.path.join(profile_dir, name)
-		copy(location, profile_config[name]['location'])
-
-	log(
-		'Profile applied successfully! Please log-out and log-in to see the changes completely!'
-	)
+	def download(zpaq=False) -> bool:
+		log.fatal('download has not yet been implemented, go and manualy install fpaq')
+		log.info('https://github.com/fcorbelli/zpaqfranz')
+		log.fatal('Either zpaqfranz or zpaq needs to be installed or present in working directory')
+		return False
+	# load config
+	config: Dict = read_config(config_file or CONFIG_FILE)
+	try:
+		export_dir: Path = sync_dir or Path(config.settings.sync_dir.location)
+	except TypeError:
+		log.fatal('A sync dir must be specified')
+		return
+	settings = config.settings.compression
+	config = config.export
+	# compressing the files
+	if compression == 'fpaq':
+		# try to find fpaq executable
+		if run('zpaqfranz > /dev/null') == 0:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
+			compression = 'zpaqfranz'
+		elif run('./zpaqfranz > /dev/null') == 0:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
+			compression = './zpaqfranz'
+		elif run('zpaq > /dev/null') == 256:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
+			compression = 'zpaq'
+		elif run('./zpaq > /dev/null') == 256:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
+			compression = './zpaq'
+		# if fpaq is not installed
+		if compression == 'fpaq':
+			# prompt to install fpaq/zpaq, if no download, return  # trunk-ignore(ruff/ERA001)
+			if not download(True):
+				return
+			# if zpaq is installed but fpaq is not
+		elif compression in ('zpaq', './zpaq'):
+			log.debug('I would recomend using zpaqfranz instead of zpaq')
+		# fpaq or zpaq installed
+		# get list of all files to compress
+		files = []
+		for section in config:
+			location: Path = Path(config[section].location)
+			# for each entry
+			for entry in config[section].entries:
+				source: Path = location / entry
+				# if the file/folder exists in local location
+				if source.exists():
+					files.append(source)
+		# compress files
+		log.info('Archiving files. This might take a while')
+		command = f'{compression} a \
+			"{export_dir / "knsn????.zpaq"}" \
+			{" ".join([f"\"{file}\"" for file in files])} \
+			-m{settings.level} \
+			{settings.args or "-backupxxh3"}'.replace('\t', '')
+		log.debug(f'running: {command}')  # trunk-ignore(ruff/G004,pylint/W1203)
+		if run(command) == 0:
+			log.info(f'Successfully exported to {export_dir / "knsn.zpaq"}')
+		else:
+			log.warning('Something seems to have gone wrong')
+	else:
+		log.fatal('No supported compression method specified')
+		return
 
 
 def remove(profile_name, profile_list, profile_count):
@@ -154,6 +191,7 @@ def remove(profile_name, profile_list, profile_count):
 		profile_name: name of the profile to be removed
 		profile_list: the list of all created profiles
 		profile_count: number of profiles created
+
 	'''
 
 	# assert
@@ -164,83 +202,6 @@ def remove(profile_name, profile_list, profile_count):
 	log('removing profile...')
 	shutil.rmtree(os.path.join(PROFILES_DIR, profile_name))
 	log('removed profile successfully')
-
-
-def export(profile_name, profile_list, profile_count, archive_dir, archive_name, force):
-	'''It will export the specified profile as a `.knsv` to the specified directory.
-	   If there is no specified directory, the directory is set to the current working directory.
-
-	Args:
-		profile_name: name of the profile to be exported
-		profile_list: the list of all created profiles
-		profile_count: number of profiles created
-		directory: output directory for the export
-		force: force the overwrite of existing export file
-		name: the name of the resulting archive
-	'''
-
-	# assert
-	assert profile_count != 0, 'No profile saved yet.'
-	assert profile_name in profile_list, 'Profile not found.'
-
-	# run
-	profile_dir = os.path.join(PROFILES_DIR, profile_name)
-
-	if archive_name:
-		profile_name = archive_name
-
-	if archive_dir:
-		export_path = os.path.join(archive_dir, profile_name)
-	else:
-		export_path = os.path.join(os.getcwd(), profile_name)
-
-	# Only continue if export_path, export_path.ksnv and export_path.zip don't exist
-	# Appends date and time to create a unique file name
-	if not force:
-		while True:
-			paths = [f'{export_path}', f'{export_path}.knsv', f'{export_path}.zip']
-			if any(os.path.exists(path) for path in paths):
-				time = 'f{:%d-%m-%Y:%H-%M-%S}'.format(datetime.now())
-				export_path = f'{export_path}_{time}'
-			else:
-				break
-
-	# compressing the files as zip
-	log('Exporting profile. It might take a minute or two...')
-
-	profile_config_file = os.path.join(profile_dir, 'conf.yaml')
-	konsync_config = read_konsync_config(profile_config_file)
-
-	export_path_save = mkdir(os.path.join(export_path, 'save'))
-	for name in konsync_config['save']:
-		location = os.path.join(profile_dir, name)
-		log(f"Exporting '{name}'...")
-		copy(location, os.path.join(export_path_save, name))
-
-	konsync_config_export = konsync_config['export']
-	export_path_export = mkdir(os.path.join(export_path, 'export'))
-	for name in konsync_config_export:
-		location = konsync_config_export[name]['location']
-		path = mkdir(os.path.join(export_path_export, name))
-		for entry in konsync_config_export[name]['entries']:
-			source = os.path.join(location, entry)
-			dest = os.path.join(path, entry)
-			log(f'Exporting "{entry}"...')
-			if os.path.exists(source):
-				if os.path.isdir(source):
-					copy(source, dest)
-				else:
-					shutil.copy(source, dest)
-
-	shutil.copy(CONFIG_FILE, export_path)
-
-	log('Creating archive')
-	shutil.make_archive(export_path, 'zip', export_path)
-
-	shutil.rmtree(export_path)
-	shutil.move(export_path + '.zip', export_path + EXPORT_EXTENSION)
-
-	log(f'Successfully exported to {export_path}{EXPORT_EXTENSION}')
 
 
 def import_profile(path):

@@ -1,7 +1,6 @@
 '''Setup module'''
 
 from pathlib import Path
-from typing import List
 
 from setuptools import find_packages, setup
 
@@ -16,7 +15,7 @@ def _read_desc() -> str:
 		return desc.read()
 
 
-def _read_reqs(path: Path) -> List[str]:
+def _read_reqs(path: Path) -> list[str]:
 	'''Reads a pip requirement file.
 
 	Args:
@@ -30,8 +29,8 @@ def _read_reqs(path: Path) -> List[str]:
 
 
 # Package requirements
-_REQUIREMENTS: List[str] = _read_reqs(Path('requirements.txt'))
-_REQUIREMENTS_DEV: List[str] = _read_reqs(Path('requirements_dev.txt'))
+_REQUIREMENTS: list[str] = _read_reqs(Path('requirements.txt'))
+_REQUIREMENTS_DEV: list[str] = _read_reqs(Path('requirements_dev.txt'))
 
 setup(
 	name='konsync',

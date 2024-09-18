@@ -6,6 +6,7 @@ select = ["ALL"]
 # Never enforce `E501` (line length violations). This should be handled by formatters.
 ignore = [
 	"ANN",
+	"B607",
 	"D100",
 	"D101",
 	"D102",
@@ -21,6 +22,7 @@ ignore = [
 	"D415",
 	"E401",
 	"E501",
+	"EXE002",
 	"FBT",
 	"PLW0603",
 	"Q000",

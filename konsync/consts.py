@@ -1,15 +1,14 @@
-'''
-This module contains all the variables for konsync
-'''
-import os
+'''consts module contains all the variables for konsync'''
+from pathlib import Path
+
 from konsync import __version__
 
+HOME = Path('~').expanduser()
+CONFIG_DIR = HOME / '.config'
+SHARE_DIR = HOME / '.local/share'
+BIN_DIR = HOME / '.local/bin'
 
-HOME = os.path.expandvars('$HOME')
-CONFIG_DIR = os.path.join(HOME, '.config')
-SHARE_DIR = os.path.join(HOME, '.local/share')
-BIN_DIR = os.path.join(HOME, '.local/bin')
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.taml')
+CONFIG_FILE = Path(__file__).parent / 'config.taml'
 
 EXPORT_EXTENSION = '.knsv'
 
