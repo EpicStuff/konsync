@@ -11,7 +11,7 @@ from rich.traceback import install
 from send2trash import send2trash
 from taml import taml
 
-from konsync.consts import CONFIG_FILE, EXPORT_EXTENSION
+from konsync.consts import CONFIG_FILE
 from konsync.parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
 
 log = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ def read_config(config_file: Path = CONFIG_FILE) -> dict:
 
 
 def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False, force: bool | str = False):
-	'''Saves necessary config files in ~/.config/konsync/profiles/<name>.
+	'''Syncs specified files with sync_dir.
 
 	Args:
 		config_file: location of config file
@@ -71,7 +71,7 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 		log.fatal('A sync dir must be specified')
 		return
 	# sync files
-	config = config.save
+	config = config.sync
 	for section in config:
 		location: Path = Path(config[section].location)
 		folder: Path = sync_dir / section
@@ -82,11 +82,15 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 			dest: Path = folder / entry
 			# if the file/folder exists in local location
 			while True:
-				if source.exists():
+				if source.exists() or source.is_symlink():
 					if source.is_symlink():
-						log.info('removing symlink %s', source)
-						send2trash(source)
-						break
+						# if is a symlink and exists in sync location
+						if dest.exists():
+							log.info('removing symlink %s', source)
+							send2trash(source)
+							break
+						else:
+							log.warning(f'{source} is a symlink that (probably) doesn\'t point to sync location, might want to look into that')
 					# move the file/folder to the sync location
 					log.debug('moving %s to %s', source, dest)
 					if dest.exists():
@@ -107,7 +111,8 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 						continue
 					log.warning('File %s already exists, deleting.', source)
 					send2trash(source)
-				run(f'ln -s {dest} {source}', check=True)
+				if run(f'ln -s {dest} {source}') != 0:
+					log.error('something seems to have gone wrong')
 
 	log.info('Files synced successfully')
 	log.info('Log-out and log-in to see the changes completely')
@@ -122,7 +127,7 @@ def export(config_file: Path = None, sync_dir: Path = None, compression: str = '
 		compression: compression algorithm used, currently only fpaq supported
 		verbose: should errors be verbose
 
-	'''
+	'''  # TODO: implement export when sync.export = True
 	def download(zpaq=False) -> bool:
 		log.fatal('download has not yet been implemented, go and manualy install fpaq')
 		log.info('https://github.com/fcorbelli/zpaqfranz')
@@ -170,11 +175,12 @@ def export(config_file: Path = None, sync_dir: Path = None, compression: str = '
 		# compress files
 		log.info('Archiving files. This might take a while')
 		command = f'{compression} a \
-			"{export_dir / "knsn????.zpaq"}" \
+			"{export_dir / "knsn-????.zpaq"}" \
 			{" ".join([f"\"{file}\"" for file in files])} \
 			-m{settings.level} \
 			{settings.args or "-backupxxh3"}'.replace('\t', '')
 		log.debug(f'running: {command}')  # trunk-ignore(ruff/G004,pylint/W1203)
+		# print('\033[90m')
 		if run(command) == 0:
 			log.info(f'Successfully exported to {export_dir / "knsn.zpaq"}')
 		else:
@@ -184,83 +190,83 @@ def export(config_file: Path = None, sync_dir: Path = None, compression: str = '
 		return
 
 
-def remove(profile_name, profile_list, profile_count):
-	'''Removes the specified profile.
+# def remove(profile_name, profile_list, profile_count):
+# 	'''Removes the specified profile.
 
-	Args:
-		profile_name: name of the profile to be removed
-		profile_list: the list of all created profiles
-		profile_count: number of profiles created
+# 	Args:
+# 		profile_name: name of the profile to be removed
+# 		profile_list: the list of all created profiles
+# 		profile_count: number of profiles created
 
-	'''
+# 	'''
 
-	# assert
-	assert profile_count != 0, 'No profile saved yet.'
-	assert profile_name in profile_list, 'Profile not found.'
+# 	# assert
+# 	assert profile_count != 0, 'No profile saved yet.'
+# 	assert profile_name in profile_list, 'Profile not found.'
 
-	# run
-	log('removing profile...')
-	shutil.rmtree(os.path.join(PROFILES_DIR, profile_name))
-	log('removed profile successfully')
-
-
-def import_profile(path):
-	'''This will import an exported profile.
-
-	Args:
-		path: path of the `.knsv` file
-	'''
-
-	# assert
-	assert (
-		is_zipfile(path) and path[-5:] == EXPORT_EXTENSION
-	), 'Not a valid konsync file'
-	item = os.path.basename(path)[:-5]
-	assert not os.path.exists(
-		os.path.join(PROFILES_DIR, item)
-	), 'A profile with this name already exists'
-
-	# run
-	log('Importing profile. It might take a minute or two...')
-
-	item = os.path.basename(path).replace(EXPORT_EXTENSION, '')
-
-	temp_path = os.path.join(KONSYNC_DIR, 'temp', item)
-
-	with ZipFile(path, 'r') as zip_file:
-		zip_file.extractall(temp_path)
-
-	config_file_location = os.path.join(temp_path, 'conf.yaml')
-	konsync_config = read_konsync_config(config_file_location)
-
-	profile_dir = os.path.join(PROFILES_DIR, item)
-	copy(os.path.join(temp_path, 'save'), profile_dir)
-	shutil.copy(os.path.join(temp_path, 'conf.yaml'), profile_dir)
-
-	for section in konsync_config['export']:
-		location = konsync_config['export'][section]['location']
-		path = os.path.join(temp_path, 'export', section)
-		mkdir(path)
-		for entry in konsync_config['export'][section]['entries']:
-			source = os.path.join(path, entry)
-			dest = os.path.join(location, entry)
-			log(f'Importing "{entry}"...')
-			if os.path.exists(source):
-				if os.path.isdir(source):
-					copy(source, dest)
-				else:
-					shutil.copy(source, dest)
-
-	shutil.rmtree(temp_path)
-
-	log('Profile successfully imported!')
+# 	# run
+# 	log('removing profile...')
+# 	shutil.rmtree(os.path.join(PROFILES_DIR, profile_name))
+# 	log('removed profile successfully')
 
 
-def wipe():
-	'''Wipes all profiles.'''
-	confirm = input('This will wipe all your profiles. Enter "WIPE" To continue: ')
-	if confirm == 'WIPE':
-		shutil.rmtree(PROFILES_DIR)
-		log('Removed all profiles!')
-	else:
-		log('Aborting...')
+# def import_profile(path):
+# 	'''This will import an exported profile.
+
+# 	Args:
+# 		path: path of the `.knsv` file
+# 	'''
+
+# 	# assert
+# 	assert (
+# 		is_zipfile(path) and path[-5:] == EXPORT_EXTENSION
+# 	), 'Not a valid konsync file'
+# 	item = os.path.basename(path)[:-5]
+# 	assert not os.path.exists(
+# 		os.path.join(PROFILES_DIR, item)
+# 	), 'A profile with this name already exists'
+
+# 	# run
+# 	log('Importing profile. It might take a minute or two...')
+
+# 	item = os.path.basename(path).replace(EXPORT_EXTENSION, '')
+
+# 	temp_path = os.path.join(KONSYNC_DIR, 'temp', item)
+
+# 	with ZipFile(path, 'r') as zip_file:
+# 		zip_file.extractall(temp_path)
+
+# 	config_file_location = os.path.join(temp_path, 'conf.yaml')
+# 	konsync_config = read_konsync_config(config_file_location)
+
+# 	profile_dir = os.path.join(PROFILES_DIR, item)
+# 	copy(os.path.join(temp_path, 'save'), profile_dir)
+# 	shutil.copy(os.path.join(temp_path, 'conf.yaml'), profile_dir)
+
+# 	for section in konsync_config['export']:
+# 		location = konsync_config['export'][section]['location']
+# 		path = os.path.join(temp_path, 'export', section)
+# 		mkdir(path)
+# 		for entry in konsync_config['export'][section]['entries']:
+# 			source = os.path.join(path, entry)
+# 			dest = os.path.join(location, entry)
+# 			log(f'Importing "{entry}"...')
+# 			if os.path.exists(source):
+# 				if os.path.isdir(source):
+# 					copy(source, dest)
+# 				else:
+# 					shutil.copy(source, dest)
+
+# 	shutil.rmtree(temp_path)
+
+# 	log('Profile successfully imported!')
+
+
+# def wipe():
+# 	'''Wipes all profiles.'''
+# 	confirm = input('This will wipe all your profiles. Enter "WIPE" To continue: ')
+# 	if confirm == 'WIPE':
+# 		shutil.rmtree(PROFILES_DIR)
+# 		log('Removed all profiles!')
+# 	else:
+# 		log('Aborting...')

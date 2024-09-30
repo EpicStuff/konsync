@@ -4,21 +4,28 @@
 # Please make sure it follows the correct format for proper working of konsync.
 # The format should be:
 # ```
-# sync_dir: 
+# settings:
+# 	sync_dir:
+# 		location: path/to/some/directory
+# 	compression:
+# 		algorithm: fpaq
+# 		level: 3
+# 		args:
+#
 # save:
 # 	name:
-# 		location: "path/to/parent/directory"
+# 		location: path/to/parent/directory
 # 		entries: 
-# 		# these are files which will be backed up. 
-# 		# They should be present in the specified location.
+# 		# these are files which will be synced to another location.
 # 			- file1
 # 			- file2
+#
 # export:
-# 	# This includes files which will be exported with your profile.
-# 	# They will not be saved but only be exported and imported.
-# 	# These may include files like complete icon packs and themes..
+# 	# This includes files which will be exported.
+# 	# They will not be symlinked but only be exported and imported.
+# 	# These may include large folders that you don't want stored without compression.
 # 	name:
-# 		location: "path/to/parent/directory"
+# 		location: path/to/parent/directory
 # 		entries: 
 # 			- file1
 # 			- file2
@@ -31,13 +38,14 @@
 # ${ENDS_WITH="text"}: for folders with different names on different computers whose names end with the same thing.
 # The best example for this is the "*.default-release" folder of firefox.
 # ${BEGINS_WITH="text"}: for folders with different names on different computers whose names start with the same thing.
+
 settings:  # general settings
-  sync_dir:  # directory to sync files to/from, eg. $HOME/Seafile/sync
-    location: $HOME/Downloads/temp/
-  compression:  # compression algorithm settings
-    algorithm: fpaq  # currently only fpaq (or officialy zpaqfanz) is supported
-    level: 3  # honestly, level 1 is probably good enough
-    args:  # overwrite compression arguments, do not touch unless you know what your doing
+	sync_dir:  # directory to sync files to/from, eg. $HOME/Seafile/sync
+		location:  # make sure to set this
+	compression:  # compression algorithm settings
+		algorithm: fpaq  # currently only fpaq (or officialy zpaqfanz) is supported
+		level: 3  # honestly, level 1 is probably good enough
+		args:  # overwrite compression arguments, do not touch unless you know what your doing
 
 save:
 	configs:

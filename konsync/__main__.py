@@ -118,8 +118,8 @@ def main():
 		sync(args.config, args.location, args.version, args.force)
 	elif args.export:
 		export(args.config, args.location, args.compression, args.version)
-	elif args.remove:
-		remove()
+	# elif args.remove:
+	# 	remove()
 	elif args.version:
 		print(VERSION)
 	elif not args.version:

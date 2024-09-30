@@ -10,6 +10,4 @@ BIN_DIR = HOME / '.local/bin'
 
 CONFIG_FILE = Path(__file__).parent / 'config.taml'
 
-EXPORT_EXTENSION = '.knsv'
-
 VERSION = __version__
