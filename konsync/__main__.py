@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 
 from konsync.consts import CONFIG_FILE, VERSION
-from konsync.funcs import export, log, remove, sync
+from konsync.funcs import export, log, sync
 
 
 def _get_parser() -> argparse.ArgumentParser:

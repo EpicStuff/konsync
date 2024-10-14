@@ -20,22 +20,22 @@ lint:
     disabled:
         - black
     enabled:
-        - actionlint@1.7.1
+        - actionlint@1.7.3
         - autopep8@2.3.1
-        - bandit@1.7.9
-        - checkov@3.2.252
+        - bandit@1.7.10
+        - checkov@3.2.255
         - git-diff-check
         - isort@5.13.2
-        - markdownlint@0.41.0
+        - markdownlint@0.42.0
         - osv-scanner@1.8.5
         - oxipng@9.1.2
         - prettier@3.3.3
-        - pylint@3.2.7
-        - ruff@0.6.4
+        - pylint@3.3.1
+        - ruff@0.6.8
         - shellcheck@0.10.0
         - shfmt@3.6.0
         - taplo@0.9.3
-        - trufflehog@3.82.1
+        - trufflehog@3.82.6
         - yamllint@1.35.1
 actions:
     disabled:
