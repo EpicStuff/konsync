@@ -11,9 +11,9 @@ from konsync.funcs import export, log, sync
 
 
 def _get_parser() -> argparse.ArgumentParser:
-	'''Returns CLI parser.
+	'''Return CLI parser.
 
-	Returns:
+	Return:
 		argparse.ArgumentParser: Created parser.
 
 	'''
@@ -94,22 +94,22 @@ def _get_parser() -> argparse.ArgumentParser:
 	return parser
 
 
-def main():
-	'''The main function that handles all the arguments and options.'''
+def main() -> None:
+	'''Handle the arguments and options.'''
 	# create copy of config file if it doesn't exist
 	if not Path(CONFIG_FILE).exists():
 		if os.path.expandvars('$XDG_CURRENT_DESKTOP') == 'KDE':
-			with importlib.resources.path('konsync', 'conf_kde.taml') as default_config_path:  # trunk-ignore(pylint/W4902)
+			with importlib.resources.path('konsync', 'conf_kde.taml') as default_config_path:
 				shutil.copy(default_config_path, CONFIG_FILE)
 		else:
-			with importlib.resources.path('konsync', 'conf_other.taml') as default_config_path:  # trunk-ignore(pylint/W4902)
+			with importlib.resources.path('konsync', 'conf_other.taml') as default_config_path:
 				shutil.copy(default_config_path, CONFIG_FILE)
 		log.info('created config file')
 
 	parser = _get_parser()
 	args = parser.parse_args()
 
-	# set log level based on verbose
+	# set log level based on verbose (version)
 	if args.version:
 		log.setLevel('DEBUG')
 	else:
@@ -122,7 +122,7 @@ def main():
 	# 	remove()
 	elif args.version:
 		print(VERSION)
-	elif not args.version:
+	else:
 		parser.print_help()
 
 

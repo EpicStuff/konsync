@@ -1,5 +1,5 @@
 <h1 align=center> Konsync (Sync Linux Customizations) </h1>
-<p align=center>A CLI program that will let you sync and export your Linux customizations with just one command! It officially supports KDE Plasma but it can be used on all other desktop environments too!</p>
+<p align=center>A CLI program that will let you sync and export your Linux customizations with just one command! It officially supports KDE Plasma but it can be used on any other desktop environment!</p>
 
 ## Installation
 
@@ -12,30 +12,40 @@ for now just `git clone https://github.com/EpicStuff/konsync` and run `python ko
 
 `konsync -h` or `konsync --help`
 
-### Sync based on current config
+### Sync based on default config
 
-`konsync -s` or `konsync --sync`
+`konsync -s` or `konsync --sync`.
 You may need to log out and log in to see all the changes.
+
+### Specify config file
+`konsync -sc config.taml` or `konsync --sync --config config.taml`.
+The default config file location is `~/.config/konsync.taml`
 
 ### Overwrite already existing files
 
-`konsync -sf <local,sync>` or `konsync --sync --force <local,sync>`
+`konsync -sf <local,sync>` or `konsync --sync --force <local|sync>`
 
-### Remove synced files from either local or sync folder
+### Remove files specified in the config from either local or sync folder
 
-`konsync -r <local,sync>` or `konsync --remove <local,sync>`
+`konsync -r <local,sync>` or `konsync --remove <local|sync>`
 
-### Export larger files/folders that you may not want stored without compression
+### Export larger files/folders that you may not want stored without compression, see compression format for detailed behaviour
 
 `konsync -e` or `konsync --export`
 
-### Export, overwrite files if they already exist, see compression format for detailed behaviour
+### Import exported archive from sync dir
 
-`konsync -ef` or `konsync --export --force`
+`konsync -i` or `konsync --import`.
+Note this will move existing files to the trash
 
-### Import a ".knsv" file
+### Import without trash
 
-`konsync -i` or `konsync --import`
+`konsync -if` or `konsync --export --force` will delete existing files instead to
+ moving them to trash
+
+### Open config with editors
+
+`konsync --edit` will open the default config with your default editor
 
 ### Show current version
 

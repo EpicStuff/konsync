@@ -8,7 +8,7 @@ from pathlib import Path
 
 from epicstuff import Dict
 from rich.traceback import install
-from send2trash import send2trash
+from send2trash import send2trash, TrashPermissionError
 from taml import taml
 
 from konsync.consts import CONFIG_FILE
@@ -63,6 +63,7 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 
 	# load config
 	config: Dict = read_config(config_file or CONFIG_FILE)
+	errored = False
 	# run
 	log.info('syncing...')
 	try:
@@ -72,6 +73,7 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 		return
 	# sync files
 	config = config.sync
+	log.info('removing existing symlinks')
 	for section in config:
 		location: Path = Path(config[section].location)
 		folder: Path = sync_dir / section
@@ -86,8 +88,11 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 					if source.is_symlink():
 						# if is a symlink and exists in sync location
 						if dest.exists():
-							log.info('removing symlink %s', source)
-							send2trash(source)
+							log.debug('removing symlink %s', source)
+							try:
+								send2trash(source)
+							except TrashPermissionError:
+								run(f'rm -r "{source}"')
 							break
 						else:
 							log.warning(f'{source} is a symlink that (probably) doesn\'t point to sync location, might want to look into that')
@@ -99,22 +104,31 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 							break
 						log.warning('File %s already exists, deleting.', dest)
 						send2trash(dest)
+					else:
+						dest.parent.mkdir(parents=True, exist_ok=True)
 					shutil.move(source, dest)
 				break
 			# if the file/folder exist in sync location
 			if dest.exists():
 				# symlink the file/folder to the local location
-				log.debug('symlinking %s to %s', dest, source)
+				log.info('%s >>> %s', dest, source)
 				if source.exists():
 					if force != 'sync':
 						log.warning('File %s already exists, skipping. Use --force sync to overwrite.', source)
 						continue
 					log.warning('File %s already exists, deleting.', source)
-					send2trash(source)
-				if run(f'ln -s {dest} {source}') != 0:
+					try:
+						send2trash(source)
+					except TrashPermissionError:
+						run(f'rm -r "{source}"')
+				else:
+					source.parent.mkdir(parents=True, exist_ok=True)
+				if run(f'ln -s "{dest}" "{source}"') != 0:
 					log.error('something seems to have gone wrong')
+					errored = True
 
-	log.info('Files synced successfully')
+	if not errored:
+		log.info('Files synced successfully')
 	log.info('Log-out and log-in to see the changes completely')
 
 
@@ -137,8 +151,9 @@ def export(config_file: Path = None, sync_dir: Path = None, compression: str = '
 	config: Dict = read_config(config_file or CONFIG_FILE)
 	try:
 		export_dir: Path = sync_dir or Path(config.settings.sync_dir.location)
+		export_name = Path(config.settings.sync_dir.export_name)
 	except TypeError:
-		log.fatal('A sync dir must be specified')
+		log.fatal('A sync dir (or export name) must be specified')
 		return
 	settings = config.settings.compression
 	config = config.export
@@ -175,7 +190,7 @@ def export(config_file: Path = None, sync_dir: Path = None, compression: str = '
 		# compress files
 		log.info('Archiving files. This might take a while')
 		command = f'{compression} a \
-			"{export_dir / "knsn-????.zpaq"}" \
+			"{export_dir / f"{export_name}-????.zpaq"}" \
 			{" ".join([f"\"{file}\"" for file in files])} \
 			-m{settings.level} \
 			{settings.args or "-backupxxh3"}'.replace('\t', '')
