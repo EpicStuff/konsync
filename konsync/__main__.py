@@ -1,9 +1,7 @@
 '''Konsync entry point.'''
 
-import argparse
-import importlib.resources
-import os
-import shutil
+import argparse, os, shutil
+from importlib.resources import files
 from pathlib import Path
 
 from konsync.consts import CONFIG_FILE, VERSION
@@ -19,6 +17,7 @@ def _get_parser() -> argparse.ArgumentParser:
 	'''
 	parser = argparse.ArgumentParser(
 		prog='Konsync',
+		description='A simple and powerful utility for managing your dotfiles.',
 		epilog='Please report bugs at https://www.github.com/epicstuff/konsync/issues',
 		usage='%(prog)s [options...] [location]',
 	)
@@ -99,11 +98,11 @@ def main() -> None:
 	# create copy of config file if it doesn't exist
 	if not Path(CONFIG_FILE).exists():
 		if os.path.expandvars('$XDG_CURRENT_DESKTOP') == 'KDE':
-			with importlib.resources.path('konsync', 'conf_kde.taml') as default_config_path:
-				shutil.copy(default_config_path, CONFIG_FILE)
+			default_config_path = str(files('konsync') / 'conf_kde.taml')
+			shutil.copy(default_config_path, CONFIG_FILE)
 		else:
-			with importlib.resources.path('konsync', 'conf_other.taml') as default_config_path:
-				shutil.copy(default_config_path, CONFIG_FILE)
+			default_config_path = str(files('konsync') / 'conf_other.taml')
+			shutil.copy(default_config_path, CONFIG_FILE)
 		log.info('created config file')
 
 	parser = _get_parser()

@@ -3,8 +3,14 @@
 
 ## Installation
 
-~~Install from PyPI using [pipx](https://pipx.pypa.io/latest/installation/), `pipx install konsync`~~ (not yet implemented)
-for now just `git clone https://github.com/EpicStuff/konsync` and run `python konsync/konsync/__main__.py`
+Install from PyPI using uv
+`uv tool install konsync`
+
+Install from PyPI using pip  
+`pip install konsync`
+
+Install from PyPI using pipx  
+`pipx install konsave`
 
 ## Usage
 
