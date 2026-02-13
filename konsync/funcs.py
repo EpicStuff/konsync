@@ -49,8 +49,8 @@ def read_config(config_file: Path = CONFIG_FILE) -> dict:
 	return Dict(convert_none_to_empty_list(config))
 
 
-def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False, force: bool | str = False):
-	'''Syncs specified files with sync_dir.
+def sync(config_file: Path | None = None, verbose: bool = False, force: bool | str = False) -> None:
+	'''Sync specified files with sync_dir.
 
 	Args:
 		config_file: location of config file
@@ -67,7 +67,7 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 	# run
 	log.info('syncing...')
 	try:
-		sync_dir: Path = sync_dir or Path(config.settings.sync_dir.location)
+		sync_dir = Path(config.settings.target.root)
 	except TypeError:
 		log.fatal('A sync dir must be specified')
 		return
@@ -130,9 +130,7 @@ def sync(config_file: Path = None, sync_dir: Path = None, verbose: bool = False,
 	if not errored:
 		log.info('Files synced successfully')
 	log.info('Log-out and log-in to see the changes completely')
-
-
-def export(config_file: Path = None, sync_dir: Path = None, compression: str = 'fpaq', verbose: bool = False):
+def export(config_file: Path | None = None, verbose: bool = False) -> None:
 	'''Will export files as `.knsv` to the sync directory.
 
 	Args:
@@ -150,8 +148,8 @@ def export(config_file: Path = None, sync_dir: Path = None, compression: str = '
 	# load config
 	config: Dict = read_config(config_file or CONFIG_FILE)
 	try:
-		export_dir: Path = sync_dir or Path(config.settings.sync_dir.location)
-		export_name = Path(config.settings.sync_dir.export_name)
+		export_dir: Path = Path(config.settings.target.root)
+		export_name = Path(config.settings.target.export_name)
 	except TypeError:
 		log.fatal('A sync dir (or export name) must be specified')
 		return

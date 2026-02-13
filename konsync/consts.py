@@ -1,7 +1,7 @@
-'''consts module contains all the variables for konsync'''
+'''consts module contains all the variables for konsync.'''
 from pathlib import Path
 
-from konsync import __version__
+from . import __version__
 
 HOME = Path('~').expanduser()
 CONFIG_DIR = HOME / '.config'
