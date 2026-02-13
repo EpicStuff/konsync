@@ -1,7 +1,7 @@
 ---
 name: Bug report
 about: Create a report to help us improve
-title: '[Bug]'
+title: '\[Bug]'
 labels: 'bug'
 assignees: 'epicstuff'
 ---
@@ -10,7 +10,7 @@ assignees: 'epicstuff'
 A clear and concise description of what the bug is.
 
 **To reproduce**
-Steps to reproduce the behavior. [click this, type that, see error]
+Steps to reproduce the behavior. \[click this, type that, see error]
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
@@ -19,8 +19,8 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **System information**
-- OS or Linux distribution: [Ubuntu, Arch, ...]
-- How did you install Konsync? [from the distro's package manager, using pip, directly from git, ...]
+- OS or Linux distribution: \[Ubuntu, Arch, ...]
+- How did you install Konsync? \[from the distro's package manager, using pip, directly from git, ...]
 - What version of Konsync are you using? Did you try updating?
 
 **Additional context**

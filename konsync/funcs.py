@@ -1,35 +1,31 @@
 '''funcs module contains all the functions for konsync.'''
 
-import logging
-import os
-import shutil
+import logging, os, shutil
 from os import system as run
 from pathlib import Path
 
 from epicstuff import Dict
 from rich.traceback import install
-from send2trash import send2trash, TrashPermissionError
+from send2trash import TrashPermissionError, send2trash
 from taml import taml
 
-from konsync.consts import CONFIG_FILE
-from konsync.parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
+from .consts import CONFIG_FILE
+from .parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
 
 log = logging.getLogger(__name__)
-logging.basicConfig()
+logging.basicConfig(level=logging.INFO)
 
 
 def exception_handler(verbose: bool = False) -> None:
 	install(width=os.get_terminal_size().columns, show_locals=verbose)
-
-
-def read_config(config_file: Path = CONFIG_FILE) -> dict:
-	'''Reads the config file and parses it.
+def read_config(config_file: Path = CONFIG_FILE) -> Dict:
+	'''Read the config file and parses it.
 
 	Args:
 		config_file: path to the config file
 
 	'''
-	def convert_none_to_empty_list(data):
+	def convert_none_to_empty_list(data: dict) -> dict | list:
 		if isinstance(data, list):
 			data[:] = [convert_none_to_empty_list(i) for i in data]
 		elif isinstance(data, dict):
@@ -37,12 +33,12 @@ def read_config(config_file: Path = CONFIG_FILE) -> dict:
 				data[k] = convert_none_to_empty_list(v)
 		return [] if data is None else data
 
-	config = taml.load(config_file)
+	config: Dict = taml.load(config_file)
 
 	parse_keywords(tokens, TOKEN_SYMBOL, config)
 	parse_functions(tokens, TOKEN_SYMBOL, config)
 
-	# in some cases config.yaml may contain nothing in "entries". Yaml parses
+	# in some cases config.taml may contain nothing in "entries". Yaml parses
 	# these as NoneType which are not iterable which throws an exception
 	# we can convert all None-Entries into empty lists recursively so they
 	# are simply skipped in loops later on
@@ -94,8 +90,7 @@ def sync(config_file: Path | None = None, verbose: bool = False, force: bool | s
 							except TrashPermissionError:
 								run(f'rm -r "{source}"')
 							break
-						else:
-							log.warning(f'{source} is a symlink that (probably) doesn\'t point to sync location, might want to look into that')
+						log.warning("%s is a symlink that (probably) doesn't point to sync location, might want to look into that", source)
 					# move the file/folder to the sync location
 					log.debug('moving %s to %s', source, dest)
 					if dest.exists():
@@ -192,10 +187,9 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 			{" ".join([f"\"{file}\"" for file in files])} \
 			-m{settings.level} \
 			{settings.args or "-backupxxh3"}'.replace('\t', '')
-		log.debug(f'running: {command}')  # trunk-ignore(ruff/G004,pylint/W1203)
-		# print('\033[90m')
+		log.debug('running: %s', command)
 		if run(command) == 0:
-			log.info(f'Successfully exported to {export_dir / "knsn.zpaq"}')
+			log.info('Successfully exported to %s', export_dir / 'knsn.zpaq')
 		else:
 			log.warning('Something seems to have gone wrong')
 	else:

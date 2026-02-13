@@ -31,6 +31,10 @@ target-version = "py313"
 		"PLR2004",
 		"PLW0603",
 		# "RUF013"
+		"DTZ005",
+		"DTZ006",
+		"EM102",
+		"G004",   # covered by pylint, (their docs are better for this one)
 		"S101",
 		"SIM117",
 		"SLF001",
@@ -38,6 +42,7 @@ target-version = "py313"
 		"TD002",
 		"TD003",
 		"TD005",
+		"TRY002",
 		"TRY003",
 		"W191",
 	]
