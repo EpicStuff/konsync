@@ -8,7 +8,7 @@ import docopt
 from epicstuff import Dict, s
 
 from .consts import CONFIG_FILE, VERSION
-from .funcs import export, import_, log, remove, sync
+from .funcs import export, import_, log, unsync, sync
 
 
 def _get_parser(argv: list[str] | str | None = None) -> docopt.ParsedOptions:
@@ -26,7 +26,7 @@ def _get_parser(argv: list[str] | str | None = None) -> docopt.ParsedOptions:
 			sync, s     Setup sync based on current config
 			export, e   Export and compress files specified in config
 			import, i   Import files that were exported
-			remove, r   Remove links and copies files
+			unsync, u   Turn symlinks back into normal files
 
 		Options:
 			-h, --help                  Show this.
@@ -66,8 +66,8 @@ def main() -> None:
 		export(args.config, args.verbose)
 	elif args.command in {'import', 'i'}:
 		import_(args.config, args.verbose)
-	elif args.command in {'remove', 'r'}:
-		remove(args.config, args.verbose)
+	elif args.command in {'unsync', 'u'}:
+		unsync(args.config, args.verbose)
 	else:
 		raise Exception('TODO: look into this')
 

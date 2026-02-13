@@ -40,3 +40,5 @@ disable=
 	W0719,  # technically covered by ruff
 	R0912,  # covered by ruff
 	R0915,  # covered by ruff
+	W1510,  # technically covered by ruff
+	W2301,  # covered by ruff
