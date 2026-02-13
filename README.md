@@ -1,4 +1,6 @@
+<!-- markdownlint-disable-next-line MD033 -->
 <h1 align=center> Konsync (Sync Linux Customizations) </h1>
+<!-- markdownlint-disable-next-line MD033 -->
 <p align=center>A CLI program that will let you sync and export your Linux customizations with just one command! It officially supports KDE Plasma but it can be used on any other desktop environment!</p>
 
 ## Installation
@@ -24,6 +26,7 @@ Install from PyPI using pipx
 You may need to log out and log in to see all the changes.
 
 ### Specify config file
+
 `konsync -sc config.taml` or `konsync --sync --config config.taml`.
 The default config file location is `~/.config/konsync.taml`
 
@@ -46,8 +49,7 @@ Note this will move existing files to the trash
 
 ### Import without trash
 
-`konsync -if` or `konsync --export --force` will delete existing files instead to
- moving them to trash
+`konsync -if` or `konsync --export --force` will delete existing files instead to moving them to trash
 
 ### Open config with editors
 

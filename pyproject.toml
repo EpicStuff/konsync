@@ -1,22 +1,19 @@
 [build-system]
-build-backend = "setuptools.build_meta"
-requires = ["setuptools>=61.0"]
+	build-backend = "setuptools.build_meta"
+	requires = ["setuptools>=61.0"]
 [project]
-authors = [{name = "EpicStuff", email = "EpicStuff@users.noreply.github.com"}]
-classifiers = [
-	"Operating System :: OS Independent",
-	"Programming Language :: Python :: 3",
-]
-dependencies = ["taml", "Send2Trash", "epicstuff"]
-description = "A program that lets you sync your Plasma configuration to a synced folder. (Seafile, Nextcloud, etc.)"
-name = "konsync"
-readme = "README.md"
-requires-python = ">=3.10"
-version = "0.2.1"
+	authors = [{email = "EpicStuff@users.noreply.github.com", name = "EpicStuff"}]
+	classifiers = ["Operating System :: OS Independent", "Programming Language :: Python :: 3"]
+	dependencies = ["Send2Trash", "epicstuff", "taml"]
+	description = "A program that lets you sync your Plasma configuration to a synced folder. (Seafile, Nextcloud, etc.)"
+	name = "konsync"
+	readme = "README.md"
+	requires-python = ">=3.10"
+	version = "0.2.1"
 
-[project.urls]
-Homepage = "https://github.com/EpicStuff/konsync"
-Issues = "https://github.com/EpicStuff/konsync/issues"
+	[project.urls]
+		Homepage = "https://github.com/EpicStuff/konsync"
+		Issues = "https://github.com/EpicStuff/konsync/issues"
 
-[project.entry-points.console_scripts]
-konsync = "konsync.__main__:main"
+	[project.entry-points.console_scripts]
+		konsync = "konsync.__main__:main"

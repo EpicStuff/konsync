@@ -1,46 +1,43 @@
-'''parse module parses conf.yaml'''
-import os
+'''parse module parses config.taml.'''
 import re
+from pathlib import Path
 
-from konsync.consts import BIN_DIR, CONFIG_DIR, HOME, SHARE_DIR
-
-
-def ends_with(grouped_regex, path) -> str:
-	'''Finds folder with name ending with the provided string.
-
-	Args:
-		grouped_regex: regex of the function
-		path: path
-
-	'''
-	occurence = re.search(grouped_regex, path).group()
-	dirs = os.listdir(path[0: path.find(occurence)])
-	ends_with_text = re.search(grouped_regex, occurence).group(2)
-	for directory in dirs:
-		if directory.endswith(ends_with_text):
-			return path.replace(occurence, directory)
-	return occurence
+from .consts import BIN_DIR, CONFIG_DIR, HOME, SHARE_DIR
 
 
-def begins_with(grouped_regex, path) -> str:
-	'''Finds folder with name beginning with the provided string.
+def ends_with(grouped_regex: str, path: str) -> str:
+	'''Find folder with name ending with the provided string.
 
 	Args:
 		grouped_regex: regex of the function
 		path: path
 
 	'''
-	occurence = re.search(grouped_regex, path).group()
-	dirs = os.listdir(path[0: path.find(occurence)])
-	ends_with_text = re.search(grouped_regex, occurence).group(2)
+	occurrence = re.search(grouped_regex, path).group()
+	dirs = Path(path[: path.find(occurrence)]).iterdir()
+	ends_with_text = re.search(grouped_regex, occurrence).group(2)
 	for directory in dirs:
-		if directory.startswith(ends_with_text):
-			return path.replace(occurence, directory)
-	return occurence
+		if directory.name.endswith(ends_with_text):
+			return path.replace(occurrence, directory.name)
+	return occurrence
+def begins_with(grouped_regex: str, path: str) -> str:
+	'''Find folder with name beginning with the provided string.
 
+	Args:
+		grouped_regex: regex of the function
+		path: path
 
-def parse_keywords(tokens_, token_symbol, parsed):
-	'''Replaces keywords with values in config.yaml.
+	'''
+	occurrence = re.search(grouped_regex, path).group()
+	dirs = Path(path[: path.find(occurrence)]).iterdir()
+	ends_with_text = re.search(grouped_regex, occurrence).group(2)
+	for directory in dirs:
+		if directory.name.startswith(ends_with_text):
+			return path.replace(occurrence, directory.name)
+	return occurrence
+
+def parse_keywords(tokens_: dict, token_symbol: str, parsed: dict) -> None:
+	'''Replace keywords with values in config.yaml.
 
 	For example, it will replace, $HOME with /home/username/
 
@@ -50,19 +47,17 @@ def parse_keywords(tokens_, token_symbol, parsed):
 		parsed: the parsed conf.yaml file
 
 	'''
-	for item in parsed:
-		for name in parsed[item]:
+	for item in parsed.values():  # TODO: check if item[name]['location'] works with .values()
+		for name in item:
 			for key, value in tokens_['keywords']['dict'].items():
-				if 'location' not in parsed[item][name]:
+				if 'location' not in item[name]:
 					continue
 				word = token_symbol + key
-				location = parsed[item][name]['location']
+				location = item[name]['location']
 				if word in location:
-					parsed[item][name]['location'] = location.replace(word, value)
-
-
-def parse_functions(tokens_, token_symbol, parsed):
-	'''Replaces functions with values in conf.yaml.
+					item[name]['location'] = location.replace(word, value)
+def parse_functions(tokens_: dict, token_symbol: str, parsed: dict) -> None:
+	'''Replace functions with values in conf.yaml.
 
 	For example, it will replace, ${ENDS_WITH='text'} with a folder whose name ends with 'text'
 
@@ -76,21 +71,21 @@ def parse_functions(tokens_, token_symbol, parsed):
 	raw_regex = f"\\{token_symbol}{functions['raw_regex']}"
 	grouped_regex = f"\\{token_symbol}{functions['grouped_regex']}"
 
-	for item in parsed:
-		for name in parsed[item]:
-			if 'location' not in parsed[item][name]:
+	for item in parsed.values():  # TODO: check if item[name]['location'] works with .values()
+		for name in item:
+			if 'location' not in item[name]:
 				continue
-			location = parsed[item][name]['location']
-			occurences = re.findall(raw_regex, location)
-			if not occurences:
+			location = item[name]['location']
+			occurrences = re.findall(raw_regex, location)
+			if not occurrences:
 				continue
-			for occurence in occurences:
-				func = re.search(grouped_regex, occurence).group(1)
+			for occurrence in occurrences:
+				func = re.search(grouped_regex, occurrence).group(1)
 				if func in functions['dict']:
-					parsed[item][name]['location'] = functions['dict'][func](grouped_regex, location)
+					item[name]['location'] = functions['dict'][func](grouped_regex, location)
 
 
-TOKEN_SYMBOL = '$'  # trunk-ignore(ruff/S105,bandit/B105)
+TOKEN_SYMBOL = '$'  # noqa: S105
 tokens = {
 	'keywords': {
 		'dict': {

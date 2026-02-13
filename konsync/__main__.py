@@ -1,13 +1,14 @@
 '''Konsync entry point.'''
 
-import docopt, os, shutil
+import os, shutil
 from importlib.resources import files
 from pathlib import Path
 
+import docopt
 from epicstuff import Dict, s
 
 from .consts import CONFIG_FILE, VERSION
-from .funcs import export, log, sync, import_, remove
+from .funcs import export, import_, log, remove, sync
 
 
 def _get_parser(argv: list[str] | str | None = None) -> docopt.ParsedOptions:
@@ -31,7 +32,7 @@ def _get_parser(argv: list[str] | str | None = None) -> docopt.ParsedOptions:
 			-h, --help                  Show this.
 			--version                   Show version.
 			-v, --verbose               Enable verbose output.
-			-f, --force <mode>          Force, will delete existing files, specify to wether prioritizes local or sync files. [local | sync]
+			-f, --force <mode>          Force, will delete existing files, specify to whether prioritizes local or sync files. [local | sync]
 			-c, --config <file>         Specify config file location, defaults to ./config.taml
 
 		Please report bugs at https://www.github.com/epicstuff/konsync/issues
