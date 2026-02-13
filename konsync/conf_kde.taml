@@ -40,14 +40,15 @@
 # ${BEGINS_WITH="text"}: for folders with different names on different computers whose names start with the same thing.
 
 settings:  # general settings
-	sync_dir:  # directory to sync files to/from, eg. $HOME/Seafile/sync
-		location:  # make sure to set this
+	target:  # file location related settings
+		root:  # directory to sync files to/from, eg. $HOME/Seafile/sync, make sure to set this
+		export_name:  knsn.zpaq
 	compression:  # compression algorithm settings
 		algorithm: fpaq  # currently only fpaq (or officialy zpaqfanz) is supported
 		level: 3  # honestly, level 1 is probably good enough
 		args:  # overwrite compression arguments, do not touch unless you know what your doing
 
-save:
+sync:
 	configs:
 		location: $CONFIG_DIR
 		entries:

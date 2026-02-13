@@ -6,8 +6,8 @@ from pathlib import Path
 
 from epicstuff import Dict, s
 
-from konsync.consts import CONFIG_FILE, VERSION
-from konsync.funcs import export, log, sync
+from .consts import CONFIG_FILE, VERSION
+from .funcs import export, log, sync, import_, remove
 
 
 def _get_parser(argv: list[str] | str | None = None) -> docopt.ParsedOptions:
@@ -33,8 +33,6 @@ def _get_parser(argv: list[str] | str | None = None) -> docopt.ParsedOptions:
 			-v, --verbose               Enable verbose output.
 			-f, --force <mode>          Force, will delete existing files, specify to wether prioritizes local or sync files. [local | sync]
 			-c, --config <file>         Specify config file location, defaults to ./config.taml
-			-C, --compression <method>  Specify compression algorithm, overwriting config.taml [fpaq]
-			-l, --location <dir>        Specify directory to sync files to, overwrites config.taml
 
 		Please report bugs at https://www.github.com/epicstuff/konsync/issues
 	''').replace('\t', '    ')
@@ -54,7 +52,7 @@ def main() -> None:
 
 	# parse command line arguments
 	args = _get_parser()
-	args = Dict({'compression': args['--compression'], 'config': args['--config'], 'force': args['--force'], 'location': args['--location'], 'verbose': args['--verbose'], 'command': args['<command>']})
+	args = Dict({'config': args['--config'], 'force': args['--force'], 'verbose': args['--verbose'], 'command': args['<command>']})
 
 	# set log level based on verbose (version)
 	if args.verbose:
@@ -62,15 +60,13 @@ def main() -> None:
 	else:
 		log.setLevel('INFO')
 	if args.command in {'sync', 's'}:
-		sync(args.config, args.location, args.version, args.force)
+		sync(args.config, args.verbose, args.force)
 	elif args.command in {'export', 'e'}:
-		export(args.config, args.location, args.compression, args.version)
+		export(args.config, args.verbose)
 	elif args.command in {'import', 'i'}:
-		...
+		import_(args.config, args.verbose)
 	elif args.command in {'remove', 'r'}:
-		...
-	elif args.version:
-		print(VERSION)
+		remove(args.config, args.verbose)
 	else:
 		raise Exception('TODO: look into this')
 
