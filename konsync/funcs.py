@@ -1,8 +1,11 @@
+# ruff: noqa: S603
 '''funcs module contains all the functions for konsync.'''
 
-import logging, os, shutil
-from os import system as run
+import logging, os, shutil, tempfile
+# from os import system as run
+from subprocess import PIPE, STDOUT, run
 from pathlib import Path
+from typing import Literal
 
 from epicstuff import Dict
 from rich.traceback import install
@@ -25,10 +28,10 @@ def read_config(config_file: Path = CONFIG_FILE) -> Dict:
 		config_file: path to the config file
 
 	'''
-	def convert_none_to_empty_list(data: dict) -> dict | list:
+	def convert_none_to_empty_list(data: dict | list) -> dict | list:
 		if isinstance(data, list):
 			data[:] = [convert_none_to_empty_list(i) for i in data]
-		elif isinstance(data, dict):
+		elif isinstance(data, Dict):
 			for k, v in data.items():
 				data[k] = convert_none_to_empty_list(v)
 		return [] if data is None else data
@@ -43,9 +46,82 @@ def read_config(config_file: Path = CONFIG_FILE) -> Dict:
 	# we can convert all None-Entries into empty lists recursively so they
 	# are simply skipped in loops later on
 	return Dict(convert_none_to_empty_list(config))
+def copy(source: Path, dest: Path, overwrite: bool = False) -> None:
+	'''Copy file or directory from source to dest.
 
+	- If dest is an existing directory, files/directories are merged.
+	- If dest is an existing file, files/directories are skipped or overwritten.
+	'''
+	if not source.exists():
+		raise FileNotFoundError(f'Source not found: {source}')
 
-def sync(config_file: Path | None = None, verbose: bool = False, force: bool | str = False) -> None:
+	if source.is_file():
+		# Determine final destination: if dest is a directory, place file inside it
+		target = dest / source.name if dest.is_dir() else dest
+		if target.exists() and not overwrite:
+			log.warning('File %s already exists, skipping. Use --force sync to overwrite.', target)
+			return
+		target.parent.mkdir(parents=True, exist_ok=True)
+		shutil.copy2(source, target)
+	elif source.is_dir():
+		if dest.exists() and not dest.is_dir():
+			if overwrite:
+				log.warning('%s already exists as a file, overwriting with directory.', dest)
+				dest.unlink()
+			else:
+				log.warning('%s already exists, skipping. Use --force sync to overwrite.', dest)
+				return
+		dest.mkdir(parents=True, exist_ok=True)
+		for item in source.iterdir():
+			copy(item, dest / item.name, overwrite)
+	else:
+		raise ValueError(f'Unsupported source type: {source}')
+
+def find_executable(name: str) -> Path:
+	'''Find the path of an executable.
+
+	Args:
+		name: name of the executable
+
+	'''
+	if name == 'fpaq':
+		possible_names = ['zpaqfranz', 'zpaq']
+	else:
+		# for the other compression algorithms that might be added in the future
+		raise ValueError(f'unsupported executable: {name}')
+
+	# loop through the possible names and check path and ./
+	for candidate in possible_names:
+		# check path
+		resolved = shutil.which(candidate)
+		if resolved:
+			break
+		# check ./
+		resolved = shutil.which(str(Path.cwd() / candidate))
+		if resolved:
+			break
+
+	# if the executable is not found, try to download it
+	if not resolved:  # pyright: ignore[reportPossiblyUnboundVariable]
+		resolved = download(name)
+		# if failed to download, raise error
+		if not resolved:
+			raise FileNotFoundError(f'{name} not found')
+
+	if name == 'fpaq' and resolved and candidate == 'zpaq':  # pyright: ignore[reportPossiblyUnboundVariable]
+		log.debug('I would recommend using zpaqfranz instead of zpaq')
+	return Path(resolved)
+def download(executable: str) -> Literal[False] | str:
+	'Download the specified executable and return its path or False if failed.'
+	if executable == 'fpaq':
+		log.fatal('download has not yet been implemented, go and manually install fpaq')
+		log.info('https://github.com/fcorbelli/zpaqfranz')
+		log.fatal('Either zpaqfranz or zpaq needs to be installed or present in working directory')
+	else:
+		raise NotImplementedError
+	return False
+
+def sync(config_file: Path | None = None, verbose: bool = False, force: bool | str = False) -> None:  # noqa: C901, PLR0912, PLR0915
 	'''Sync specified files with sync_dir.
 
 	Args:
@@ -63,7 +139,7 @@ def sync(config_file: Path | None = None, verbose: bool = False, force: bool | s
 	# run
 	log.info('syncing...')
 	try:
-		sync_dir = Path(config.settings.target.root)
+		sync_dir = Path(config.settings.target.location)
 	except TypeError:
 		log.fatal('A sync dir must be specified')
 		return
@@ -88,7 +164,11 @@ def sync(config_file: Path | None = None, verbose: bool = False, force: bool | s
 							try:
 								send2trash(source)
 							except TrashPermissionError:
-								run(f'rm -r "{source}"')
+								if force:
+									source.unlink()
+								else:
+									log.exception('Failed to trash %s, skipping.', source)
+									errored = True
 							break
 						log.warning("%s is a symlink that (probably) doesn't point to sync location, might want to look into that", source)
 					# move the file/folder to the sync location
@@ -115,11 +195,21 @@ def sync(config_file: Path | None = None, verbose: bool = False, force: bool | s
 					try:
 						send2trash(source)
 					except TrashPermissionError:
-						run(f'rm -r "{source}"')
+						if force:
+							try:
+								source.unlink()
+							except IsADirectoryError:
+								shutil.rmtree(source)
+						else:
+							log.exception('Failed to trash %s, skipping.', source)
+							errored = True
 				else:
 					source.parent.mkdir(parents=True, exist_ok=True)
-				if run(f'ln -s "{dest}" "{source}"') != 0:
-					log.error('something seems to have gone wrong')
+
+				try:
+					source.symlink_to(dest)
+				except Exception:
+					log.exception('something seems to have gone wrong')
 					errored = True
 
 	if not errored:
@@ -135,41 +225,22 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 		verbose: should errors be verbose
 
 	'''  # TODO: implement export when sync.export = True
-	def download(zpaq=False) -> bool:
-		log.fatal('download has not yet been implemented, go and manualy install fpaq')
-		log.info('https://github.com/fcorbelli/zpaqfranz')
-		log.fatal('Either zpaqfranz or zpaq needs to be installed or present in working directory')
-		return False
+	exception_handler(verbose)  # setup exception handler
+
 	# load config
 	config: Dict = read_config(config_file or CONFIG_FILE)
 	try:
-		export_dir: Path = Path(config.settings.target.root)
+		export_dir: Path = Path(config.settings.target.location)
 		export_name = Path(config.settings.target.export_name)
 	except TypeError:
-		log.fatal('A sync dir (or export name) must be specified')
+		log.fatal('A sync dir and export name must be specified')
 		return
-	settings = config.settings.compression
+	c_s = config.settings.compression  # compression settings
 	config = config.export
 	# compressing the files
-	if compression == 'fpaq':
+	if c_s.algorithm == 'fpaq':
 		# try to find fpaq executable
-		if run('zpaqfranz > /dev/null') == 0:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
-			compression = 'zpaqfranz'
-		elif run('./zpaqfranz > /dev/null') == 0:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
-			compression = './zpaqfranz'
-		elif run('zpaq > /dev/null') == 256:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
-			compression = 'zpaq'
-		elif run('./zpaq > /dev/null') == 256:  # trunk-ignore(bandit/B605,ruff/S605,ruff/S607)
-			compression = './zpaq'
-		# if fpaq is not installed
-		if compression == 'fpaq':
-			# prompt to install fpaq/zpaq, if no download, return  # trunk-ignore(ruff/ERA001)
-			if not download(True):
-				return
-			# if zpaq is installed but fpaq is not
-		elif compression in ('zpaq', './zpaq'):
-			log.debug('I would recomend using zpaqfranz instead of zpaq')
-		# fpaq or zpaq installed
+		binary = find_executable('fpaq')
 		# get list of all files to compress
 		files = []
 		for section in config:
@@ -182,98 +253,83 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 					files.append(source)
 		# compress files
 		log.info('Archiving files. This might take a while')
-		command = f'{compression} a \
-			"{export_dir / f"{export_name}-????.zpaq"}" \
-			{" ".join([f"\"{file}\"" for file in files])} \
-			-m{settings.level} \
-			{settings.args or "-backupxxh3"}'.replace('\t', '')
-		log.debug('running: %s', command)
-		if run(command) == 0:
+		command = [
+			binary, 'a', export_dir / f'{export_name}-????.zpaq',
+			*[f'"{file}"' for file in files],
+			f'-m{c_s.level}', (c_s.args or '-backupxxh3'),
+		]
+		log.debug('running: %s', ' '.join(command))
+		if run(command).returncode == 0:
 			log.info('Successfully exported to %s', export_dir / 'knsn.zpaq')
 		else:
 			log.warning('Something seems to have gone wrong')
 	else:
 		log.fatal('No supported compression method specified')
 		return
+def import_(config_file: Path | None = None, force: bool = False, verbose: bool = False) -> None:
+	'''Import an exported profile.
 
+	Args:
+		config_file: location of config file
+		force: should existing files be overwritten
+		verbose: should errors be verbose
 
-# def remove(profile_name, profile_list, profile_count):
-# 	'''Removes the specified profile.
+	'''
+	exception_handler(verbose)  # setup exception handler
 
-# 	Args:
-# 		profile_name: name of the profile to be removed
-# 		profile_list: the list of all created profiles
-# 		profile_count: number of profiles created
+	# load config
+	config: Dict = read_config(config_file or CONFIG_FILE)
+	# check if location, export_name have been specified and exists
+	try:
+		if Path(config.settings.target.export_name).is_absolute():
+			import_name = Path(config.settings.target.export_name)
+		else:
+			import_name = Path(config.settings.target.location) / config.settings.target.export_name
+	except TypeError:
+		log.fatal('A sync dir and import name must be specified')
+		return
+	assert import_name.exists(), f'export {import_name} not found.'
 
-# 	'''
+	# rest of settings
+	c_s = config.settings.compression  # compression settings
+	config = config.export
 
-# 	# assert
-# 	assert profile_count != 0, 'No profile saved yet.'
-# 	assert profile_name in profile_list, 'Profile not found.'
+	if c_s.algorithm == 'fpaq':
+		# get binary
+		binary = find_executable('fpaq')
+		# check if is valid archive
+		out = run([binary, 't', f'"{import_name}"'], stdout=PIPE, stderr=STDOUT, capture_output=True, input='\n', text=True)
+		if out.returncode != 0:
+			log.fatal('Invalid archive or something seems to have gone wrong')
+			log.info('fpaq output: %s', out.stdout)
+			return
+		# run
+		log.info('Importing profile. It might take a minute or two...')
 
-# 	# run
-# 	log('removing profile...')
-# 	shutil.rmtree(os.path.join(PROFILES_DIR, profile_name))
-# 	log('removed profile successfully')
+		temp_dir = Path(tempfile.mkdtemp())
+		run([binary,  'x', f'"{import_name}"', '-o', temp_dir], text=True, check=True)
 
+		# for each section in the export part of the config
+		for section in config.export.values():
+			location = section.location  # where the files should go
+			path = temp_dir / section  # where the files are
+			for entry in section.entries:
+				source = path / entry
+				dest = location / entry
+				log.info('Importing "%s"...', entry)
+				if source.exists():
+					copy(source, dest, force)
+	else:
+		log.fatal('No supported compression method specified')
+		return
+	shutil.rmtree(temp_dir)
+	log.info('Profile successfully imported!')
+def unsync(config_file: Dict | None, verbose: bool = False) -> None:
+	'''Turn symlinks back into normal files.
 
-# def import_profile(path):
-# 	'''This will import an exported profile.
+	Args:
+		config_file: location of config file
+		verbose: should errors be verbose
 
-# 	Args:
-# 		path: path of the `.knsv` file
-# 	'''
-
-# 	# assert
-# 	assert (
-# 		is_zipfile(path) and path[-5:] == EXPORT_EXTENSION
-# 	), 'Not a valid konsync file'
-# 	item = os.path.basename(path)[:-5]
-# 	assert not os.path.exists(
-# 		os.path.join(PROFILES_DIR, item)
-# 	), 'A profile with this name already exists'
-
-# 	# run
-# 	log('Importing profile. It might take a minute or two...')
-
-# 	item = os.path.basename(path).replace(EXPORT_EXTENSION, '')
-
-# 	temp_path = os.path.join(KONSYNC_DIR, 'temp', item)
-
-# 	with ZipFile(path, 'r') as zip_file:
-# 		zip_file.extractall(temp_path)
-
-# 	config_file_location = os.path.join(temp_path, 'conf.yaml')
-# 	konsync_config = read_konsync_config(config_file_location)
-
-# 	profile_dir = os.path.join(PROFILES_DIR, item)
-# 	copy(os.path.join(temp_path, 'save'), profile_dir)
-# 	shutil.copy(os.path.join(temp_path, 'conf.yaml'), profile_dir)
-
-# 	for section in konsync_config['export']:
-# 		location = konsync_config['export'][section]['location']
-# 		path = os.path.join(temp_path, 'export', section)
-# 		mkdir(path)
-# 		for entry in konsync_config['export'][section]['entries']:
-# 			source = os.path.join(path, entry)
-# 			dest = os.path.join(location, entry)
-# 			log(f'Importing "{entry}"...')
-# 			if os.path.exists(source):
-# 				if os.path.isdir(source):
-# 					copy(source, dest)
-# 				else:
-# 					shutil.copy(source, dest)
-
-# 	shutil.rmtree(temp_path)
-
-# 	log('Profile successfully imported!')
-
-
-# def wipe():
-# 	'''Wipes all profiles.'''
-# 	confirm = input('This will wipe all your profiles. Enter "WIPE" To continue: ')
-# 	if confirm == 'WIPE':
-# 		shutil.rmtree(PROFILES_DIR)
-# 		log('Removed all profiles!')
-# 	else:
-# 		log('Aborting...')
+	'''
+	...

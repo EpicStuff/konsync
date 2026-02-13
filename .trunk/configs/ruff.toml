@@ -34,7 +34,9 @@ target-version = "py313"
 		"DTZ005",
 		"DTZ006",
 		"EM102",
-		"G004",   # covered by pylint, (their docs are better for this one)
+		"G004",    # covered by pylint, (their docs are better for this one)
+		"PIE790",
+		"PLW1510",
 		"S101",
 		"SIM117",
 		"SLF001",

@@ -2,6 +2,8 @@
 import re
 from pathlib import Path
 
+from epicstuff import Dict
+
 from .consts import BIN_DIR, CONFIG_DIR, HOME, SHARE_DIR
 
 
@@ -36,8 +38,8 @@ def begins_with(grouped_regex: str, path: str) -> str:
 			return path.replace(occurrence, directory.name)
 	return occurrence
 
-def parse_keywords(tokens_: dict, token_symbol: str, parsed: dict) -> None:
-	'''Replace keywords with values in config.yaml.
+def parse_keywords(tokens_: Dict, token_symbol: str, parsed: Dict) -> None:
+	'''Replace keywords with values in config.taml.
 
 	For example, it will replace, $HOME with /home/username/
 
@@ -47,17 +49,17 @@ def parse_keywords(tokens_: dict, token_symbol: str, parsed: dict) -> None:
 		parsed: the parsed conf.yaml file
 
 	'''
-	for item in parsed.values():  # TODO: check if item[name]['location'] works with .values()
+	for item in parsed.values():
 		for name in item:
-			for key, value in tokens_['keywords']['dict'].items():
+			for key, value in tokens_.keywords.dict.items():
 				if 'location' not in item[name]:
 					continue
 				word = token_symbol + key
-				location = item[name]['location']
+				location = item[name].location
 				if word in location:
-					item[name]['location'] = location.replace(word, value)
-def parse_functions(tokens_: dict, token_symbol: str, parsed: dict) -> None:
-	'''Replace functions with values in conf.yaml.
+					item[name].location = location.replace(word, value)
+def parse_functions(tokens_: Dict, token_symbol: str, parsed: Dict) -> None:
+	'''Replace functions with values in config.taml.
 
 	For example, it will replace, ${ENDS_WITH='text'} with a folder whose name ends with 'text'
 
@@ -67,26 +69,26 @@ def parse_functions(tokens_: dict, token_symbol: str, parsed: dict) -> None:
 		parsed: the parsed conf.yaml file
 
 	'''
-	functions = tokens_['functions']
-	raw_regex = f"\\{token_symbol}{functions['raw_regex']}"
-	grouped_regex = f"\\{token_symbol}{functions['grouped_regex']}"
+	functions = tokens_.functions
+	raw_regex = f'\\{token_symbol}{functions.raw_regex}'
+	grouped_regex = f'\\{token_symbol}{functions.grouped_regex}'
 
-	for item in parsed.values():  # TODO: check if item[name]['location'] works with .values()
+	for item in parsed.values():
 		for name in item:
 			if 'location' not in item[name]:
 				continue
-			location = item[name]['location']
+			location = item[name].location
 			occurrences = re.findall(raw_regex, location)
 			if not occurrences:
 				continue
 			for occurrence in occurrences:
 				func = re.search(grouped_regex, occurrence).group(1)
-				if func in functions['dict']:
-					item[name]['location'] = functions['dict'][func](grouped_regex, location)
+				if func in functions.dict:
+					item[name].location = functions.dict[func](grouped_regex, location)
 
 
 TOKEN_SYMBOL = '$'  # noqa: S105
-tokens = {
+tokens = Dict({
 	'keywords': {
 		'dict': {
 			'HOME': str(HOME),
@@ -100,4 +102,4 @@ tokens = {
 		'grouped_regex': r"\{(\w+)\=(?:\"|')(\S+)(?:\"|')\}",
 		'dict': {'ENDS_WITH': ends_with, 'BEGINS_WITH': begins_with},
 	},
-}
+})

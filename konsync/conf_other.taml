@@ -30,7 +30,7 @@
 
 settings:  # general settings
 	target:  # file location related settings
-		root:  # directory to sync files to/from, eg. $HOME/Seafile/sync, make sure to set this
+		location:  # directory to sync files to/from, eg. $HOME/Seafile/sync, make sure to set this
 		export_name: knsn.zpaq
 	compression:  # compression algorithm settings
 		algorithm: fpaq  # currently only fpaq (or officially zpaqfanz) is supported
