@@ -1,10 +1,10 @@
 # ruff: noqa: S603
 '''funcs module contains all the functions for konsync.'''
 
-import logging, os, shutil, tempfile
+import logging, os, shlex, shutil, tempfile
+from pathlib import Path
 # from os import system as run
 from subprocess import PIPE, STDOUT, run
-from pathlib import Path
 from typing import Literal
 
 from epicstuff import Dict
@@ -62,6 +62,7 @@ def copy(source: Path, dest: Path, overwrite: bool = False) -> None:
 			log.warning('File %s already exists, skipping. Use --force sync to overwrite.', target)
 			return
 		target.parent.mkdir(parents=True, exist_ok=True)
+		log.debug('%s --> %s', source, target)
 		shutil.copy2(source, target)
 	elif source.is_dir():
 		if dest.exists() and not dest.is_dir():
@@ -230,8 +231,7 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 	# load config
 	config: Dict = read_config(config_file or CONFIG_FILE)
 	try:
-		export_dir: Path = Path(config.settings.target.location)
-		export_name = Path(config.settings.target.export_name)
+		export_path = Path(config.settings.target.location) / Path(config.settings.target.export_name)
 	except TypeError:
 		log.fatal('A sync dir and export name must be specified')
 		return
@@ -242,7 +242,7 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 		# try to find fpaq executable
 		binary = find_executable('fpaq')
 		# get list of all files to compress
-		files = []
+		files: list[str] = []
 		for section in config:
 			location: Path = Path(config[section].location)
 			# for each entry
@@ -250,23 +250,23 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 				source: Path = location / entry
 				# if the file/folder exists in local location
 				if source.exists():
-					files.append(source)
+					files.append(str(source))
 		# compress files
 		log.info('Archiving files. This might take a while')
 		command = [
-			binary, 'a', export_dir / f'{export_name}-????.zpaq',
-			*[f'"{file}"' for file in files],
+			str(binary), 'a', str(export_path),
+			*files,
 			f'-m{c_s.level}', (c_s.args or '-backupxxh3'),
 		]
-		log.debug('running: %s', ' '.join(command))
+		log.debug('running: %s', shlex.join(command))
 		if run(command).returncode == 0:
-			log.info('Successfully exported to %s', export_dir / 'knsn.zpaq')
+			log.info('Successfully exported to %s', export_path)
 		else:
 			log.warning('Something seems to have gone wrong')
 	else:
 		log.fatal('No supported compression method specified')
 		return
-def import_(config_file: Path | None = None, force: bool = False, verbose: bool = False) -> None:
+def import_(config_file: Path | None = None, verbose: bool = False, force: bool = False) -> None:
 	'''Import an exported profile.
 
 	Args:
@@ -288,7 +288,6 @@ def import_(config_file: Path | None = None, force: bool = False, verbose: bool 
 	except TypeError:
 		log.fatal('A sync dir and import name must be specified')
 		return
-	assert import_name.exists(), f'export {import_name} not found.'
 
 	# rest of settings
 	c_s = config.settings.compression  # compression settings
@@ -298,26 +297,27 @@ def import_(config_file: Path | None = None, force: bool = False, verbose: bool 
 		# get binary
 		binary = find_executable('fpaq')
 		# check if is valid archive
-		out = run([binary, 't', f'"{import_name}"'], stdout=PIPE, stderr=STDOUT, capture_output=True, input='\n', text=True)
+		out = run([binary, 't', import_name], stdout=PIPE, stderr=STDOUT, input='\n', text=True)
 		if out.returncode != 0:
 			log.fatal('Invalid archive or something seems to have gone wrong')
-			log.info('fpaq output: %s', out.stdout)
+			log.info('fpaq output:\n%s', out.stdout)
 			return
 		# run
 		log.info('Importing profile. It might take a minute or two...')
 
-		temp_dir = Path(tempfile.mkdtemp())
-		run([binary,  'x', f'"{import_name}"', '-o', temp_dir], text=True, check=True)
+		temp_dir = Path(tempfile.mkdtemp(prefix='konsync-'))
+		run([binary, 'x', import_name, '-to', temp_dir], text=True, check=True)
 
 		# for each section in the export part of the config
-		for section in config.export.values():
-			location = section.location  # where the files should go
-			path = temp_dir / section  # where the files are
+		for section in config.values():
+			location = Path(section.location)  # where the files should go
+			assert location.is_absolute(), 'location must be an absolute path'
+			path = temp_dir / location.relative_to(location.anchor)  # where the files are
 			for entry in section.entries:
 				source = path / entry
 				dest = location / entry
-				log.info('Importing "%s"...', entry)
 				if source.exists():
+					log.info('Importing "%s"...', dest)
 					copy(source, dest, force)
 	else:
 		log.fatal('No supported compression method specified')

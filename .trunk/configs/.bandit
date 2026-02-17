@@ -1,3 +1,7 @@
 [bandit]
 exclude = tests
-skips = B112,B101,B105
+skips =
+	B112,
+	B101,
+	B105,
+	B404
