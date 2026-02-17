@@ -37,7 +37,7 @@ def _get_parser(argv: list[str] | str | None = None) -> docopt.ParsedOptions:
 
 		Please report bugs at https://www.github.com/epicstuff/konsync/issues
 	''').replace('\t', '    ')
-	return docopt.docopt(doc, argv, version=VERSION)
+	return docopt.docopt(doc, argv, version=VERSION)  # @IgnoreException
 
 def main() -> None:
 	'''Handle the arguments and options.'''
@@ -65,7 +65,7 @@ def main() -> None:
 	elif args.command in {'export', 'e'}:
 		export(args.config, args.verbose)
 	elif args.command in {'import', 'i'}:
-		import_(args.config, args.verbose)
+		import_(args.config, args.verbose, args.force)
 	elif args.command in {'unsync', 'u'}:
 		unsync(args.config, args.verbose)
 	else:
