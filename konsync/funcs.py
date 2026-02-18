@@ -324,7 +324,7 @@ def import_(config_file: Path | None = None, verbose: bool = False, force: bool 
 		return
 	shutil.rmtree(temp_dir)
 	log.info('Profile successfully imported!')
-def unsync(config_file: Dict | None, verbose: bool = False) -> None:
+def unsync(config_file: Path | None, verbose: bool = False) -> None:
 	'''Turn symlinks back into normal files.
 
 	Args:
@@ -332,4 +332,22 @@ def unsync(config_file: Dict | None, verbose: bool = False) -> None:
 		verbose: should errors be verbose
 
 	'''
-	...
+	exception_handler(verbose)
+
+	# load config
+	config = read_config(config_file or CONFIG_FILE)
+	log.info('unsyncing...')
+	# for each section
+	for section in config:
+		location = Path(config[section].location)
+		# for each entry
+		for entry in config[section].entries:
+			path: Path = location / entry
+			# if the file/folder in the local location is symlink
+			if path.is_symlink():
+				target = path.resolve()
+				if target.exists():
+					log.debug('Unsyncing %s...', path)
+					path.unlink()
+					shutil.copy2(target, path)
+	log.info('Files unsynced successfully')
