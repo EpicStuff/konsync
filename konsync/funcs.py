@@ -122,7 +122,7 @@ def download(executable: str) -> Literal[False] | str:
 		raise NotImplementedError
 	return False
 
-def sync(config_file: Path | None = None, verbose: bool = False, force: bool | str = False) -> None:  # noqa: C901, PLR0912, PLR0915
+def sync(config_file: Path | None = None, force: bool | str = False) -> None:  # noqa: C901, PLR0912, PLR0915
 	'''Sync specified files with sync_dir.
 
 	Args:
@@ -132,8 +132,6 @@ def sync(config_file: Path | None = None, verbose: bool = False, force: bool | s
 		force: force overwrite existing files
 
 	'''
-	exception_handler(verbose)
-
 	# load config
 	config: Dict = read_config(config_file or CONFIG_FILE)
 	errored = False
@@ -324,12 +322,39 @@ def import_(config_file: Path | None = None, verbose: bool = False, force: bool 
 		return
 	shutil.rmtree(temp_dir)
 	log.info('Profile successfully imported!')
-def unsync(config_file: Dict | None, verbose: bool = False) -> None:
+def unsync(config_file: Path | None, force: bool = False) -> None:
 	'''Turn symlinks back into normal files.
 
 	Args:
 		config_file: location of config file
-		verbose: should errors be verbose
+		force: should symlinks that point outside of sync location be unsynced
 
 	'''
-	...
+	# load config
+	config = read_config(config_file or CONFIG_FILE)
+	try:
+		sync_dir = Path(config.settings.target.location)
+	except TypeError:
+		log.fatal('A sync dir or force must be specified')
+		return
+	log.info('unsyncing...')
+	# for each section
+	for section in config:
+		location = Path(config[section].location)
+		# for each entry
+		for entry in config[section].entries:
+			path: Path = location / entry
+			# if the file/folder in the local location is symlink
+			if path.is_symlink():
+				target = path.resolve()
+				if target.exists():
+					# check if the target is inside the sync dir or force
+					if force or target.is_relative_to(sync_dir):
+						log.debug('Unsyncing %s...', path)
+						path.unlink()
+						shutil.copy2(target, path)
+					else:
+						log.warning('%s points to outside of sync location, skipping. Use --force local to unsync anyways.', path)
+				else:
+					log.warning('%s is broken symlink, skipping.', path)
+	log.info('Files unsynced successfully')
