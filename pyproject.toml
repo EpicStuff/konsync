@@ -4,7 +4,7 @@
 [project]
 	authors = [{email = "EpicStuff@users.noreply.github.com", name = "EpicStuff"}]
 	classifiers = ["Operating System :: OS Independent", "Programming Language :: Python :: 3"]
-	dependencies = ["Send2Trash", "epicstuff", "taml"]
+	dependencies = ["Send2Trash", "docopt-ng", "epicstuff", "taml"]
 	description = "A program that lets you sync your Plasma configuration to a synced folder. (Seafile, Nextcloud, etc.)"
 	name = "konsync"
 	readme = "README.md"
