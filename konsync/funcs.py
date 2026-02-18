@@ -46,8 +46,8 @@ def read_config(config_file: Path = CONFIG_FILE) -> Dict:
 	# we can convert all None-Entries into empty lists recursively so they
 	# are simply skipped in loops later on
 	return Dict(convert_none_to_empty_list(config))
-def copy(source: Path, dest: Path, overwrite: bool = False) -> None:
-	'''Copy file or directory from source to dest.
+def move(source: Path, dest: Path, overwrite: bool = False) -> None:
+	'''Move file or directory from source to dest.
 
 	- If dest is an existing directory, files/directories are merged.
 	- If dest is an existing file, files/directories are skipped or overwritten.
@@ -63,7 +63,10 @@ def copy(source: Path, dest: Path, overwrite: bool = False) -> None:
 			return
 		target.parent.mkdir(parents=True, exist_ok=True)
 		log.debug('%s --> %s', source, target)
-		shutil.copy2(source, target)
+		# Remove target if overwriting (shutil.move doesn't overwrite by default)
+		if target.exists():
+			target.unlink()
+		shutil.move(source, target)
 	elif source.is_dir():
 		if dest.exists() and not dest.is_dir():
 			if overwrite:
@@ -73,8 +76,12 @@ def copy(source: Path, dest: Path, overwrite: bool = False) -> None:
 				log.warning('%s already exists, skipping. Use --force sync to overwrite.', dest)
 				return
 		dest.mkdir(parents=True, exist_ok=True)
-		for item in source.iterdir():
-			copy(item, dest / item.name, overwrite)
+		# Move each item in source into dest
+		for item in list(source.iterdir()):  # list() to avoid modification during iteration
+			move(item, dest / item.name, overwrite)
+		# If source directory is now empty, remove it
+		if not any(source.iterdir()):
+			source.rmdir()
 	else:
 		raise ValueError(f'Unsupported source type: {source}')
 
@@ -318,7 +325,7 @@ def import_(config_file: Path | None = None, verbose: bool = False, force: bool 
 				dest = location / entry
 				if source.exists():
 					log.info('Importing "%s"...', dest)
-					copy(source, dest, force)
+					move(source, dest, force)
 	else:
 		log.fatal('No supported compression method specified')
 		return
