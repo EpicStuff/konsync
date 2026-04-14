@@ -12,13 +12,18 @@
 # 		level: 3
 # 		args:
 #
-# save:
-# 	name:
+# sync:
+# 	name1:
 # 		location: path/to/parent/directory
+#			tags: [export, hard]
 # 		entries: 
 # 		# these are files which will be synced to another location.
 # 			- file1
 # 			- file2
+# 	name2:
+# 		location: $Placeholder
+# 		entries:
+# 			- file3
 #
 # export:
 # 	# This includes files which will be exported.
