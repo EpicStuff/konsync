@@ -131,7 +131,7 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 		verbose: should errors be verbose
 		force: force overwrite existing files
 
-	'''
+	'''  # TODO: hard link instead of softlink when hard tag present
 	# load config
 	config: Dict = read_config(config_file or CONFIG_FILE)
 	errored = False
@@ -174,7 +174,8 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 					log.debug('moving %s to %s', source, dest)
 					if dest.exists():
 						if force != 'local':
-							log.warning('File %s already exists, skipping. Use --force local to overwrite.', dest)
+							if force != 'sync':
+								log.warning('File %s already exists, skipping. Use --force local to overwrite.', dest)
 							break
 						log.warning('File %s already exists, deleting.', dest)
 						send2trash(dest)
@@ -188,7 +189,8 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 				log.info('%s >>> %s', dest, source)
 				if source.exists():
 					if force != 'sync':
-						log.warning('File %s already exists, skipping. Use --force sync to overwrite.', source)
+						if force != 'local':
+							log.warning('File %s already exists, skipping. Use --force sync to overwrite.', source)
 						continue
 					log.warning('File %s already exists, deleting.', source)
 					try:
@@ -223,7 +225,7 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 		compression: compression algorithm used, currently only fpaq supported
 		verbose: should errors be verbose
 
-	'''  # TODO: implement export when sync.export = True
+	'''
 	exception_handler(verbose)  # setup exception handler
 
 	# load config
@@ -233,8 +235,16 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 	except TypeError:
 		log.fatal('A sync dir and export name must be specified')
 		return
+	
+	# copy sync files with export tag to config.export to also export
+	# TODO: test this
+	for section in config.sync:
+		if 'tags' in section and 'export' in section.tags:
+			config.export.update({section: config.sync[section]})
+
 	c_s = config.settings.compression  # compression settings
 	config = config.export
+
 	# compressing the files
 	if c_s.algorithm == 'fpaq':
 		# try to find fpaq executable
@@ -330,6 +340,8 @@ def unsync(config_file: Path | None, force: bool = False) -> None:
 		force: should symlinks that point outside of sync location be unsynced
 
 	'''
+	errored = False
+
 	# load config
 	config = read_config(config_file or CONFIG_FILE)
 	try:
@@ -337,6 +349,8 @@ def unsync(config_file: Path | None, force: bool = False) -> None:
 	except TypeError:
 		log.fatal('A sync dir or force must be specified')
 		return
+
+	config = config.sync
 	log.info('unsyncing...')
 	# for each section
 	for section in config:
@@ -344,17 +358,22 @@ def unsync(config_file: Path | None, force: bool = False) -> None:
 		# for each entry
 		for entry in config[section].entries:
 			path: Path = location / entry
-			# if the file/folder in the local location is symlink
+			# if the file/folder in the local location is symlink, copy file/folder to local location
 			if path.is_symlink():
 				target = path.resolve()
 				if target.exists():
 					# check if the target is inside the sync dir or force
 					if force or target.is_relative_to(sync_dir):
-						log.debug('Unsyncing %s...', path)
+						log.info('%s <<< %s', path, target)
 						path.unlink()
-						shutil.copy2(target, path)
+						copy(target, path)
 					else:
 						log.warning('%s points to outside of sync location, skipping. Use --force local to unsync anyways.', path)
+						errored = True
 				else:
 					log.warning('%s is broken symlink, skipping.', path)
-	log.info('Files unsynced successfully')
+					errored = True
+			else:
+				log.debug('%s is not a symlink, skipping.', path)
+	if not errored:
+		log.info('Files unsynced successfully')
