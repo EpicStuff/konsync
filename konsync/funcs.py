@@ -1,13 +1,13 @@
-# ruff: noqa: S603
 '''funcs module contains all the functions for konsync.'''
 
-import logging, os, shlex, shutil, tempfile
+import os, shlex, shutil, tempfile, sys
 from pathlib import Path
 # from os import system as run
 from subprocess import PIPE, STDOUT, run
-from typing import Literal
+from typing import Any, Literal
 
 from epicstuff import Dict
+from loguru import logger
 from rich.traceback import install
 from send2trash import TrashPermissionError, send2trash
 from taml import taml
@@ -15,12 +15,48 @@ from taml import taml
 from .consts import CONFIG_FILE
 from .parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+class Logger:
+	def __init__(self, path: str | None = None) -> None:
+		self.path = Path(path) if path else None
+	def shorten(self, *args: Path | Any) -> list[Path]:
+		assert self.path, 'your going to have to set path first'
+		args: list = list(args)
+		for num, path in enumerate(args):
+			if isinstance(path, Path) and path.is_relative_to(self.path):
+				args[num] = '$SYNC' / path.relative_to(self.path)
+		return args
 
+	def debug(self, message: str, *args: Path | Any) -> None:
+		logger.debug(message, *self.shorten(*args))
+	def info(self, message: str, *args: Path | Any) -> None:
+		logger.info(message, *self.shorten(*args))
+	def warning(self, message: str, *args: Path | Any) -> None:
+		logger.warning(message, *self.shorten(*args))
+	def critical(self, message: str, *args: Path | Any) -> None:
+		logger.critical(message, *self.shorten(*args))
+
+
+log = Logger()
 
 def exception_handler(verbose: bool = False) -> None:
 	install(width=os.get_terminal_size().columns, show_locals=verbose)
+def setup_logging(verbose: bool, sink: Any = sys.stdout) -> None:
+	logger.remove()
+	logger.add(
+		sink,
+		level='DEBUG' if verbose else 'INFO',
+		colorize=True,
+		backtrace=verbose,
+		diagnose=verbose,
+		enqueue=True,
+		format=(
+			'<green>{time:HH:mm:ss}</green> <cyan>|</cyan> '
+			'<level>{level: <8}</level> <cyan>|</cyan>  '
+			'<level>{message}</level>'
+		),
+	)
+
+
 def read_config(config_file: Path = CONFIG_FILE) -> Dict:
 	'''Read the config file and parses it.
 
@@ -59,18 +95,18 @@ def copy(source: Path, dest: Path, overwrite: bool = False) -> None:
 		# Determine final destination: if dest is a directory, place file inside it
 		target = dest / source.name if dest.is_dir() else dest
 		if target.exists() and not overwrite:
-			log.warning('File %s already exists, skipping. Use --force sync to overwrite.', target)
+			log.warning('File {} already exists, skipping. Use --force sync to overwrite.', target)
 			return
 		target.parent.mkdir(parents=True, exist_ok=True)
-		log.debug('%s --> %s', source, target)
+		log.debug('{} --> {}', source, target)
 		shutil.copy2(source, target)
 	elif source.is_dir():
 		if dest.exists() and not dest.is_dir():
 			if overwrite:
-				log.warning('%s already exists as a file, overwriting with directory.', dest)
+				log.warning('{} already exists as a file, overwriting with directory.', dest)
 				dest.unlink()
 			else:
-				log.warning('%s already exists, skipping. Use --force sync to overwrite.', dest)
+				log.warning('{} already exists, skipping. Use --force sync to overwrite.', dest)
 				return
 		dest.mkdir(parents=True, exist_ok=True)
 		for item in source.iterdir():
@@ -115,9 +151,9 @@ def find_executable(name: str) -> Path:
 def download(executable: str) -> Literal[False] | str:
 	'Download the specified executable and return its path or False if failed.'
 	if executable == 'fpaq':
-		log.fatal('download has not yet been implemented, go and manually install fpaq')
+		log.critical('download has not yet been implemented, go and manually install fpaq')
 		log.info('https://github.com/fcorbelli/zpaqfranz')
-		log.fatal('Either zpaqfranz or zpaq needs to be installed or present in working directory')
+		log.critical('Either zpaqfranz or zpaq needs to be installed or present in working directory')
 	else:
 		raise NotImplementedError
 	return False
@@ -140,7 +176,7 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 	try:
 		sync_dir = Path(config.settings.target.location)
 	except TypeError:
-		log.fatal('A sync dir must be specified')
+		log.critical('A sync dir must be specified')
 		return
 	# sync files
 	config = config.sync
@@ -160,25 +196,25 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 					if source.is_symlink():
 						# if is a symlink and exists in sync location
 						if dest.exists():
-							log.debug('removing symlink %s', source)
+							log.debug('removing symlink {}', source)
 							try:
 								send2trash(source)
 							except TrashPermissionError:
 								if force:
 									source.unlink()
 								else:
-									log.exception('Failed to trash %s, skipping.', source)
+									log.exception('Failed to trash {}, skipping.', source)
 									errored = True
 							break
-						log.warning("%s is a symlink that (probably) doesn't point to sync location, might want to look into that", source)
+						log.warning("{} is a symlink that (probably) doesn't point to sync location, might want to look into that", source)
 					# move the file/folder to the sync location
-					log.debug('moving %s to %s', source, dest)
+					log.debug('moving {} to {}', source, dest)
 					if dest.exists():
 						if force != 'local':
 							if force != 'sync':
-								log.warning('File %s already exists, skipping. Use --force local to overwrite.', dest)
+								log.warning('File {} already exists, skipping. Use --force local to overwrite.', dest)
 							break
-						log.warning('File %s already exists, deleting.', dest)
+						log.warning('File {} already exists, deleting.', dest)
 						send2trash(dest)
 					else:
 						dest.parent.mkdir(parents=True, exist_ok=True)
@@ -187,13 +223,13 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 			# if the file/folder exist in sync location
 			if dest.exists():
 				# symlink the file/folder to the local location
-				log.info('%s >>> %s', dest, source)
+				log.info('{} >>> {}', source, dest)
 				if source.exists():
 					if force != 'sync':
 						if force != 'local':
-							log.warning('File %s already exists, skipping. Use --force sync to overwrite.', source)
+							log.warning('File {} already exists, skipping. Use --force sync to overwrite.', source)
 						continue
-					log.warning('File %s already exists, deleting.', source)
+					log.warning('File {} already exists, deleting.', source)
 					try:
 						send2trash(source)
 					except TrashPermissionError:
@@ -203,7 +239,7 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 							except IsADirectoryError:
 								shutil.rmtree(source)
 						else:
-							log.exception('Failed to trash %s, skipping.', source)
+							log.exception('Failed to trash {}, skipping.', source)
 							errored = True
 				else:
 					source.parent.mkdir(parents=True, exist_ok=True)
@@ -219,7 +255,7 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 
 	if not errored:
 		log.info('Files synced successfully')
-	log.info('Log-out and log-in to see the changes completely')
+	log.info('Log out and log in to see the changes completely')
 def export(config_file: Path | None = None, verbose: bool = False) -> None:
 	'''Will export files as `.knsv` to the sync directory.
 
@@ -237,7 +273,7 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 	try:
 		export_path = Path(config.settings.target.location) / Path(config.settings.target.export_name)
 	except TypeError:
-		log.fatal('A sync dir and export name must be specified')
+		log.critical('A sync dir and export name must be specified')
 		return
 	
 	# copy sync files with export tag to config.export to also export
@@ -270,13 +306,13 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 			*files,
 			f'-m{c_s.level}', (c_s.args or '-backupxxh3'),
 		]
-		log.debug('running: %s', shlex.join(command))
+		log.debug('running: {}', shlex.join(command))
 		if run(command).returncode == 0:
-			log.info('Successfully exported to %s', export_path)
+			log.info('Successfully exported to {}', export_path)
 		else:
 			log.warning('Something seems to have gone wrong')
 	else:
-		log.fatal('No supported compression method specified')
+		log.critical('No supported compression method specified')
 		return
 def import_(config_file: Path | None = None, verbose: bool = False, force: bool = False) -> None:
 	'''Import an exported profile.
@@ -298,7 +334,7 @@ def import_(config_file: Path | None = None, verbose: bool = False, force: bool 
 		else:
 			import_name = Path(config.settings.target.location) / config.settings.target.export_name
 	except TypeError:
-		log.fatal('A sync dir and import name must be specified')
+		log.critical('A sync dir and import name must be specified')
 		return
 
 	# rest of settings
@@ -311,8 +347,8 @@ def import_(config_file: Path | None = None, verbose: bool = False, force: bool 
 		# check if is valid archive
 		out = run([binary, 't', import_name], stdout=PIPE, stderr=STDOUT, input='\n', text=True)
 		if out.returncode != 0:
-			log.fatal('Invalid archive or something seems to have gone wrong')
-			log.info('fpaq output:\n%s', out.stdout)
+			log.critical('Invalid archive or something seems to have gone wrong')
+			log.info('fpaq output:\n{}', out.stdout)
 			return
 		# run
 		log.info('Importing profile. It might take a minute or two...')
@@ -329,13 +365,14 @@ def import_(config_file: Path | None = None, verbose: bool = False, force: bool 
 				source = path / entry
 				dest = location / entry
 				if source.exists():
-					log.info('Importing "%s"...', dest)
+					log.info('Importing "{}"...', dest)
 					copy(source, dest, force)
 	else:
-		log.fatal('No supported compression method specified')
+		log.critical('No supported compression method specified')
 		return
 	shutil.rmtree(temp_dir)
 	log.info('Profile successfully imported!')
+	log.info('Log out and log in to see the changes completely')
 def unsync(config_file: Path | None, force: bool = False) -> None:
 	'''Turn symlinks back into normal files.
 
@@ -351,7 +388,7 @@ def unsync(config_file: Path | None, force: bool = False) -> None:
 	try:
 		sync_dir = Path(config.settings.target.location)
 	except TypeError:
-		log.fatal('A sync dir or force must be specified')
+		log.critical('A sync dir or force must be specified')
 		return
 
 	config = config.sync

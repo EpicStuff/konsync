@@ -3,3 +3,4 @@ Send2Trash == 1.8.3
 setuptools>=75.1.0
 docopt-ng
 epicstuff
+loguru
