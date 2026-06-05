@@ -2,10 +2,10 @@
 import re
 from pathlib import Path
 
-from epicstuff import Dict
+from .consts import BIN_DIR, CONFIG_DIR, HOME, SHARE_DIR, TOKEN_SYMBOL
 
-from .consts import BIN_DIR, CONFIG_DIR, HOME, SHARE_DIR
 
+sync_dir: None | str = None
 
 def ends_with(grouped_regex: str, path: str) -> str:
 	'''Find folder with name ending with the provided string.
@@ -38,68 +38,44 @@ def begins_with(grouped_regex: str, path: str) -> str:
 			return path.replace(occurrence, directory.name)
 	return occurrence
 
-def parse_keywords(tokens_: Dict, token_symbol: str, parsed: Dict) -> None:
-	'''Replace keywords with values in config.taml.
+def parse_path(path: str, sync: bool = False) -> Path:
+	'''Replace keywords and functions with values.
 
-	For example, it will replace, $HOME with /home/username/
-
-	Args:
-		tokens_: the token dictionary
-		token_symbol: TOKEN_SYMBOL
-		parsed: the parsed conf.yaml file
-
-	'''
-	for item in parsed.values():
-		for name in item:
-			for key, value in tokens_.keywords.dict.items():
-				if 'location' not in item[name]:
-					continue
-				word = token_symbol + key
-				location = item[name].location
-				if word in location:
-					item[name].location = location.replace(word, value)
-def parse_functions(tokens_: Dict, token_symbol: str, parsed: Dict) -> None:
-	'''Replace functions with values in config.taml.
-
-	For example, it will replace, ${ENDS_WITH='text'} with a folder whose name ends with 'text'
+	For example, it will replace, $HOME with /home/username/ and ${ENDS_WITH='text'} with a folder whose name ends with 'text'
 
 	Args:
-		tokens_: the token dictionary
-		token_symbol: TOKEN_SYMBOL
-		parsed: the parsed conf.yaml file
+		path: the string to be parsed
+		sync: is this being called on the sync key/setting and should sync_dir be updated
 
 	'''
-	functions = tokens_.functions
-	raw_regex = f'\\{token_symbol}{functions.raw_regex}'
-	grouped_regex = f'\\{token_symbol}{functions.grouped_regex}'
+	global sync_dir
+	tokens = {
+		'HOME': str(HOME),
+		'CONFIG_DIR': str(CONFIG_DIR),
+		'SHARE_DIR': str(SHARE_DIR),
+		'BIN_DIR': str(BIN_DIR),
+		'SYNC': sync_dir,
+	}
+	functions = {'ENDS_WITH': ends_with, 'BEGINS_WITH': begins_with}
+	quote = r'(?:"|\')'
+	raw_regex = rf'\{TOKEN_SYMBOL}\{{\w+={quote}\S+{quote}\}}'
+	grouped_regex = rf'\{TOKEN_SYMBOL}\{{(\w+)={quote}(\S+){quote}\}}'
 
-	for item in parsed.values():
-		for name in item:
-			if 'location' not in item[name]:
-				continue
-			location = item[name].location
-			occurrences = re.findall(raw_regex, location)
-			if not occurrences:
-				continue
-			for occurrence in occurrences:
-				func = re.search(grouped_regex, occurrence).group(1)
-				if func in functions.dict:
-					item[name].location = functions.dict[func](grouped_regex, location)
+	# replace $... with real path
+	for key, value in tokens.items():
+		word = TOKEN_SYMBOL + key
+		if word in path:
+			assert value is not None, f'{TOKEN_SYMBOL}SYNC can only be used after sync has been defined.'
+			path = path.replace(word, value)
+	# save sync path to be available to use later
+	if sync:
+		sync_dir = path
 
-
-TOKEN_SYMBOL = '$'  # noqa: S105
-tokens = Dict({
-	'keywords': {
-		'dict': {
-			'HOME': str(HOME),
-			'CONFIG_DIR': str(CONFIG_DIR),
-			'SHARE_DIR': str(SHARE_DIR),
-			'BIN_DIR': str(BIN_DIR),
-		},
-	},
-	'functions': {
-		'raw_regex': r"\{\w+\=(?:\"|')\S+(?:\"|')\}",
-		'grouped_regex': r"\{(\w+)\=(?:\"|')(\S+)(?:\"|')\}",
-		'dict': {'ENDS_WITH': ends_with, 'BEGINS_WITH': begins_with},
-	},
-})
+	# replace functions
+	occurrences = re.findall(raw_regex, path)
+	if occurrences:
+		for occurrence in occurrences:
+			func = re.search(grouped_regex, occurrence).group(1)
+			if func in functions:
+				path = functions[func](grouped_regex, path)
+	return Path(path)

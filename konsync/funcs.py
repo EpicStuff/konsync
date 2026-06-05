@@ -12,8 +12,7 @@ from rich.traceback import install
 from send2trash import TrashPermissionError, send2trash
 from taml import taml
 
-from .consts import CONFIG_FILE
-from .parse import TOKEN_SYMBOL, parse_functions, parse_keywords, tokens
+from .consts import CONFIG_FILE, SCHEMA_FILE
 
 class Logger:
 	def __init__(self, path: str | None = None) -> None:
@@ -58,30 +57,12 @@ def setup_logging(verbose: bool, sink: Any = sys.stdout) -> None:
 
 
 def read_config(config_file: Path = CONFIG_FILE) -> Dict:
-	'''Read the config file and parses it.
+	'Read the config file and parses it.'
+	config = taml.load(config_file, SCHEMA_FILE)
+	# update sync dir for logging
+	log.path = Path(config.settings.targets.sync_dir)
 
-	Args:
-		config_file: path to the config file
-
-	'''
-	def convert_none_to_empty_list(data: dict | list) -> dict | list:
-		if isinstance(data, list):
-			data[:] = [convert_none_to_empty_list(i) for i in data]
-		elif isinstance(data, Dict):
-			for k, v in data.items():
-				data[k] = convert_none_to_empty_list(v)
-		return [] if data is None else data
-
-	config: Dict = taml.load(config_file)
-
-	parse_keywords(tokens, TOKEN_SYMBOL, config)
-	parse_functions(tokens, TOKEN_SYMBOL, config)
-
-	# in some cases config.taml may contain nothing in "entries". Yaml parses
-	# these as NoneType which are not iterable which throws an exception
-	# we can convert all None-Entries into empty lists recursively so they
-	# are simply skipped in loops later on
-	return Dict(convert_none_to_empty_list(config))
+	return config
 def copy(source: Path, dest: Path, overwrite: bool = False) -> None:
 	'''Copy file or directory from source to dest.
 
@@ -169,20 +150,16 @@ def sync(config_file: Path | None = None, force: bool | str = False) -> None:  #
 
 	'''
 	# load config
-	config: Dict = read_config(config_file or CONFIG_FILE)
+	config = read_config(config_file or CONFIG_FILE)
 	errored = False
 	# run
 	log.info('syncing...')
-	try:
-		sync_dir = Path(config.settings.target.location)
-	except TypeError:
-		log.critical('A sync dir must be specified')
-		return
+	sync_dir: Path = config.settings.targets.sync_dir
 	# sync files
 	config = config.sync
 	log.info('removing existing symlinks')
 	for section in config:
-		location: Path = Path(config[section].location)
+		location: Path = config[section].location
 		folder: Path = sync_dir / section
 		folder.mkdir(parents=True, exist_ok=True)
 		tags = config[section].get('tags', [])
@@ -269,13 +246,9 @@ def export(config_file: Path | None = None, verbose: bool = False) -> None:
 	exception_handler(verbose)  # setup exception handler
 
 	# load config
-	config: Dict = read_config(config_file or CONFIG_FILE)
-	try:
-		export_path = Path(config.settings.target.location) / Path(config.settings.target.export_name)
-	except TypeError:
-		log.critical('A sync dir and export name must be specified')
-		return
-	
+	config = read_config(config_file or CONFIG_FILE)
+	export_path: Path = config.settings.targets.export_path
+
 	# copy sync files with export tag to config.export to also export
 	# TODO: test this
 	for section in config.sync:
@@ -326,16 +299,9 @@ def import_(config_file: Path | None = None, verbose: bool = False, force: bool 
 	exception_handler(verbose)  # setup exception handler
 
 	# load config
-	config: Dict = read_config(config_file or CONFIG_FILE)
+	config = read_config(config_file or CONFIG_FILE)
 	# check if location, export_name have been specified and exists
-	try:
-		if Path(config.settings.target.export_name).is_absolute():
-			import_name = Path(config.settings.target.export_name)
-		else:
-			import_name = Path(config.settings.target.location) / config.settings.target.export_name
-	except TypeError:
-		log.critical('A sync dir and import name must be specified')
-		return
+	import_name: Path = config.settings.targets.export_path
 
 	# rest of settings
 	c_s = config.settings.compression  # compression settings
@@ -385,11 +351,7 @@ def unsync(config_file: Path | None, force: bool = False) -> None:
 
 	# load config
 	config = read_config(config_file or CONFIG_FILE)
-	try:
-		sync_dir = Path(config.settings.target.location)
-	except TypeError:
-		log.critical('A sync dir or force must be specified')
-		return
+	sync_dir: Path = config.settings.target.location
 
 	config = config.sync
 	log.info('unsyncing...')

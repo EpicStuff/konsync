@@ -1,0 +1,18 @@
+﻿settings:
+	targets:
+		sync_dir: taml.required(konsync.parse_path(sync=True))
+		export_path: taml.required(konsync.parse_path)
+	compression:
+		algorithm: taml.required
+		level: int
+		args:
+
+sync:
+	taml.repeat:
+		tags: taml.repeat()
+		location: taml.required(konsync.parse_path)
+		entries: taml.repeat(str)
+export:
+	taml.repeat:
+		location: taml.required(konsync.parse_path)
+		entries: taml.repeat(str)

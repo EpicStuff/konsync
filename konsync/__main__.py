@@ -31,14 +31,15 @@ from docopt import docopt
 from epicstuff import Dict
 from loguru import logger as log
 
-from .consts import CONFIG_FILE, VERSION
+from . import __version__
+from .consts import CONFIG_FILE
 from .funcs import exception_handler, export, import_, setup_logging, sync, unsync
 
 
 def main() -> None:
 	'''Handle the arguments and options.'''
 	# parse command line arguments
-	args = docopt(__doc__, version=VERSION)  # pyright: ignore[reportArgumentType]
+	args = docopt(__doc__, version=__version__)  # pyright: ignore[reportArgumentType]
 	args = Dict({'config': args['--config'], 'force': args['--force'], 'verbose': args['--verbose'], 'command': args['<command>']})
 	if len(args.config) > 1 or len(args.force) > 1:
 		raise Exception('Only pass flag once.')
